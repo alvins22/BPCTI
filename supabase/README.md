@@ -8,17 +8,17 @@ Supabase project: **bpcti-portal** (`kknaakkfbqqdsabajmaf`, region us-west-1, fr
 |---|---|
 | `profiles` | One row per user: email, name, role (`student`, `teacher`, `admin`). Created automatically when someone accepts an invite. |
 | `courses`, `course_weeks` | The 8 specializations and their 12 weeks, seeded from the public site's `src/content/courses.js`. |
-| `classes` | A class group: one specialization, one group of students, one schedule. |
-| `class_teachers` | Which teachers teach which class groups. |
-| `enrollments` | Which students are in which class groups (`active`, `completed`, `withdrawn`). |
-| `recordings` | Zoom share link + passcode for a class group's week. Must be a zoom.us / zoom.com link. |
-| `materials` | Handouts per class/week: a file in the private `class-materials` bucket (`<class_id>/<file>`) or a link. |
+| `classes` | A **session**: one run of a class with its own start date, schedule, teachers, and students. |
+| `class_teachers` | Which teachers teach which sessions. |
+| `enrollments` | Which students are in which sessions (`active`, `completed`, `withdrawn`). |
+| `recordings` | Zoom share link + passcode for a week of a **class** (course), shared by every session of that class. Must be a zoom.us / zoom.com link. |
+| `materials` | Handouts for a week (or the whole class), shared by every session: a file in the private `class-materials` bucket (`<course_id>/<file>`) or a link. |
 
 ## Who can see what (enforced by row-level security)
 
-- **Students** see only class groups they're enrolled in (`active` or `completed`), plus that class's recordings, materials, and teachers. Withdrawn students lose access.
-- **Teachers** see only their assigned class groups and those students, and can add/edit/delete recordings and materials there.
-- **Admins** see and manage everything, including creating class groups and enrollments.
+- **Students** see only sessions they're enrolled in (`active` or `completed`) and their teachers, plus the shared recordings and materials of that class. Withdrawn students lose access.
+- **Teachers** see only their assigned sessions and those students. They can add/edit/delete recordings and materials for any class they teach a session of; changes are shared with every session of that class.
+- **Admins** see and manage everything, including creating sessions and enrollments.
 - Signed-out visitors see nothing.
 - Nobody but an admin (or the server) can change a role or email.
 
@@ -29,10 +29,10 @@ Supabase project: **bpcti-portal** (`kknaakkfbqqdsabajmaf`, region us-west-1, fr
 ```http
 POST /functions/v1/invite-user
 Authorization: Bearer <admin's session token>
-{ "email": "student@example.com", "full_name": "Jane Kim", "role": "student", "class_id": "<uuid>" }
+{ "email": "student@example.com", "full_name": "Jane Kim", "role": "student", "class_id": "<session uuid>" }
 ```
 
-It emails an invite (or reuses an existing account), sets the role, and adds the person to the class group.
+It emails an invite (or reuses an existing account), sets the role, and adds the person to the session.
 
 ## One-time setup in the Supabase dashboard
 
@@ -49,4 +49,5 @@ It emails an invite (or reuses an existing account), sets the role, and adds the
 
 - `migrations/20261024150000_portal_schema.sql` — tables, access rules, triggers, storage bucket
 - `migrations/20261024150100_seed_courses.sql` — courses and weeks
+- `migrations/20261024193000_shared_class_library.sql` — recordings and materials moved from sessions to classes
 - `functions/invite-user/index.ts` — admin invite function

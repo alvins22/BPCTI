@@ -51,45 +51,41 @@
     courses() { return unwrap(sb.from("courses").select("*").order("program").order("specialization")); },
     weeks(courseId) { return unwrap(sb.from("course_weeks").select("*").eq("course_id", courseId).order("week")); },
 
-    // ---------- classes ----------
-    classes() {
+    // ---------- sessions (table: classes) ----------
+    sessions() {
       return unwrap(sb.from("classes").select("*, course:courses(id, program, specialization, title)").order("start_date", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false }));
     },
-    getClass(id) {
+    getSession(id) {
       return unwrap(sb.from("classes").select("*, course:courses(id, program, specialization, title, tagline)").eq("id", id).maybeSingle());
     },
-    async teachers(classId) {
-      const rows = await unwrap(sb.from("class_teachers").select("teacher:profiles(id, full_name, email)").eq("class_id", classId));
+    async teachers(sessionId) {
+      const rows = await unwrap(sb.from("class_teachers").select("teacher:profiles(id, full_name, email)").eq("class_id", sessionId));
       return rows.map((r) => r.teacher).filter(Boolean);
     },
-    async roster(classId) {
-      const rows = await unwrap(sb.from("enrollments").select("status, enrolled_at, student:profiles(id, full_name, email)").eq("class_id", classId).order("enrolled_at"));
+    async roster(sessionId) {
+      const rows = await unwrap(sb.from("enrollments").select("status, enrolled_at, student:profiles(id, full_name, email)").eq("class_id", sessionId).order("enrolled_at"));
       return rows.filter((r) => r.student).map((r) => ({ ...r.student, status: r.status, enrolled_at: r.enrolled_at }));
     },
-    async myEnrollment(classId, userId) {
-      return unwrap(sb.from("enrollments").select("status").eq("class_id", classId).eq("student_id", userId).maybeSingle());
-    },
 
-    // ---------- recordings ----------
-    recordings(classId) { return unwrap(sb.from("recordings").select("*").eq("class_id", classId).order("week").order("created_at")); },
+    // ---------- class library (shared by every session of a class) ----------
+    recordings(courseId) { return unwrap(sb.from("recordings").select("*").eq("course_id", courseId).order("week").order("created_at")); },
     addRecording(rec) { return unwrap(sb.from("recordings").insert(rec).select().single()); },
     updateRecording(id, patch) { return unwrap(sb.from("recordings").update(patch).eq("id", id).select().single()); },
     deleteRecording(id) { return unwrap(sb.from("recordings").delete().eq("id", id)); },
 
-    // ---------- materials ----------
-    materials(classId) { return unwrap(sb.from("materials").select("*").eq("class_id", classId).order("week", { nullsFirst: true }).order("created_at")); },
-    async addMaterialFile(classId, week, title, file) {
-      const path = `${classId}/${uuid()}-${safeName(file.name)}`;
+    materials(courseId) { return unwrap(sb.from("materials").select("*").eq("course_id", courseId).order("week", { nullsFirst: true }).order("created_at")); },
+    async addMaterialFile(courseId, week, title, file) {
+      const path = `${courseId}/${uuid()}-${safeName(file.name)}`;
       await unwrap(sb.storage.from("class-materials").upload(path, file, { upsert: false, contentType: file.type || undefined }));
       try {
-        return await unwrap(sb.from("materials").insert({ class_id: classId, week, title, storage_path: path }).select().single());
+        return await unwrap(sb.from("materials").insert({ course_id: courseId, week, title, storage_path: path }).select().single());
       } catch (e) {
         await sb.storage.from("class-materials").remove([path]);
         throw e;
       }
     },
-    addMaterialLink(classId, week, title, url) {
-      return unwrap(sb.from("materials").insert({ class_id: classId, week, title, external_url: url }).select().single());
+    addMaterialLink(courseId, week, title, url) {
+      return unwrap(sb.from("materials").insert({ course_id: courseId, week, title, external_url: url }).select().single());
     },
     async deleteMaterial(m) {
       if (m.storage_path) await sb.storage.from("class-materials").remove([m.storage_path]);
@@ -100,13 +96,18 @@
       const d = await unwrap(sb.storage.from("class-materials").createSignedUrl(m.storage_path, 120, { download: m.storage_path.split("/").pop().replace(/^[0-9a-f-]{36}-/, "") }));
       return d.signedUrl;
     },
+    // Does the signed-in user teach any session of this class?
+    async teachesCourse(courseId, userId) {
+      const rows = await unwrap(sb.from("class_teachers").select("class_id, session:classes!inner(course_id)").eq("teacher_id", userId).eq("session.course_id", courseId).limit(1));
+      return rows.length > 0;
+    },
 
     // ---------- admin ----------
     people() { return unwrap(sb.from("profiles").select("id, email, full_name, role, created_at").order("role").order("full_name")); },
     setRole(id, role) { return unwrap(sb.from("profiles").update({ role }).eq("id", id)); },
-    createClass(c) { return unwrap(sb.from("classes").insert(c).select().single()); },
-    updateClass(id, patch) { return unwrap(sb.from("classes").update(patch).eq("id", id).select().single()); },
-    deleteClass(id) { return unwrap(sb.from("classes").delete().eq("id", id)); },
+    createSession(c) { return unwrap(sb.from("classes").insert(c).select().single()); },
+    updateSession(id, patch) { return unwrap(sb.from("classes").update(patch).eq("id", id).select().single()); },
+    deleteSession(id) { return unwrap(sb.from("classes").delete().eq("id", id)); },
     addTeacher(classId, teacherId) { return unwrap(sb.from("class_teachers").upsert({ class_id: classId, teacher_id: teacherId })); },
     removeTeacher(classId, teacherId) { return unwrap(sb.from("class_teachers").delete().eq("class_id", classId).eq("teacher_id", teacherId)); },
     enroll(classId, studentId) { return unwrap(sb.from("enrollments").upsert({ class_id: classId, student_id: studentId, status: "active" })); },
