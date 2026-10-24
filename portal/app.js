@@ -1,8 +1,11 @@
 // =====================================================================
 //  BPCTI Student Portal — screens. Hash routes:
-//    #/                       home (my classes / all classes)
-//    #/class/<id>             class page (12 weeks, details, roster, admin)
-//    #/class/<id>/week/<n>    week page (focus, recordings, materials)
+//    #/                         home (my sessions / all classes for admins)
+//    #/class/<course>           class library: 12 weeks of shared recordings
+//                               and materials, plus the class's sessions
+//    #/class/<course>/week/<n>  library week page
+//    #/session/<id>             session: dates, teacher, students, 12 weeks
+//    #/session/<id>/week/<n>    week page with this session's dates
 //    #/people                 admin: invite people, roles
 //    #/account                name and password
 // =====================================================================
@@ -71,7 +74,6 @@
     catch (_) { const r = document.createRange(); const el = btn.previousElementSibling; if (el) { r.selectNodeContents(el); const s = getSelection(); s.removeAllRanges(); s.addRange(r); } btn.textContent = "Selected — press Ctrl/Cmd+C"; }
     setTimeout(() => (btn.textContent = "Copy"), 2500);
   }
-  const isManager = (cls, teachers) => state.me.role === "admin" || teachers.some((t) => t.id === state.me.id);
 
   // ---------- auth screens ----------
   function authFrame(inner) {
@@ -152,7 +154,7 @@
   // ---------- shell ----------
   function shell(active, body) {
     const me = state.me;
-    const nav = [["#/", me.role === "admin" ? "Classes" : "My Classes", "home"]];
+    const nav = [["#/", me.role === "admin" ? "Classes" : me.role === "teacher" ? "My Sessions" : "My Classes", "home"]];
     if (me.role === "admin") nav.push(["#/people", "People", "people"]);
     nav.push(["#/account", "Account", "account"]);
     app.innerHTML = `
@@ -175,156 +177,200 @@
   async function homeView() {
     loading("home");
     const me = state.me;
-    const classes = await API.classes();
+    const [sessions, allCourses] = await Promise.all([API.sessions(), courses()]);
+    if (me.role === "admin") return adminHome(sessions, allCourses);
+
     const weeksBy = {};
-    await Promise.all([...new Set(classes.map((c) => c.course_id))].map(async (id) => (weeksBy[id] = await API.weeks(id))));
-    const card = (c) => {
-      const w = currentWeek(c);
-      const wk = w >= 1 && w <= 12 ? weeksBy[c.course_id]?.[w - 1] : null;
-      return `<a class="ccard" href="#/class/${c.id}">
-        <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><span class="eyebrow" style="margin:0">${esc(PROGRAM[c.course.program])} · ${esc(c.course.specialization)}</span><span class="pill ${c.status}">${esc(c.status)}</span></div>
-        <h3>${esc(c.course.title)}</h3>
-        <div class="meta">${esc(c.name)}${c.schedule ? ` · ${esc(c.schedule)}` : ""}</div>
-        <div class="now">${wk ? `<b>This week:</b> Week ${w} — ${esc(wk.title)}` : esc(weekLabel(c))}</div>
+    await Promise.all([...new Set(sessions.map((s) => s.course_id))].map(async (id) => (weeksBy[id] = await API.weeks(id))));
+    const card = (s) => {
+      const w = currentWeek(s);
+      const wk = w >= 1 && w <= 12 ? weeksBy[s.course_id]?.[w - 1] : null;
+      return `<a class="ccard" href="#/session/${s.id}">
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><span class="eyebrow" style="margin:0">${esc(PROGRAM[s.course.program])} · ${esc(s.course.specialization)}</span><span class="pill ${s.status}">${esc(s.status)}</span></div>
+        <h3>${esc(s.course.title)}</h3>
+        <div class="meta">${esc(s.name)}${s.schedule ? ` · ${esc(s.schedule)}` : ""}</div>
+        <div class="now">${wk ? `<b>This week:</b> Week ${w} — ${esc(wk.title)}` : esc(weekLabel(s))}</div>
       </a>`;
     };
-    let body;
-    if (me.role === "admin") {
-      const groups = [["active", "Active"], ["planned", "Planned"], ["completed", "Completed"], ["cancelled", "Cancelled"]];
-      body = `<div class="pagehead"><div><h1>Classes</h1><p class="muted">Every class group at BPCTI. Open one to manage its teachers, students, recordings, and materials.</p></div>
-        <button class="btn btn-primary" id="newclass">New class</button></div>
-        <div id="newclass-form" hidden></div>
-        ${classes.length ? groups.map(([k, l]) => { const g = classes.filter((c) => c.status === k); return g.length ? `<h2 style="margin:28px 0 12px">${l}</h2><div class="grid">${g.map(card).join("")}</div>` : ""; }).join("")
-          : `<div class="panel"><h2>No classes yet</h2><p class="muted" style="margin-top:6px">Create the first class group, then invite its teacher and students.</p></div>`}`;
-    } else {
-      const title = me.role === "teacher" ? "Your classes" : `Welcome, ${esc(firstName(me))}`;
-      const empty = me.role === "teacher"
-        ? "You haven't been assigned to a class yet. Once BPCTI adds you as a teacher, your classes will appear here."
-        : "You're not enrolled in a class yet. Once BPCTI adds you to a class, it will appear here.";
-      body = `<div class="pagehead"><div><h1>${title}</h1>${me.role === "student" && classes.length ? `<p class="muted">Pick a class to see this week's lesson, recordings, and materials.</p>` : ""}</div></div>
-        ${classes.length ? `<div class="grid">${classes.map(card).join("")}</div>` : `<div class="panel"><p class="empty">${empty}</p></div>`}`;
-    }
-    shell("home", body);
-    if (me.role === "admin") $("#newclass").onclick = () => classForm($("#newclass-form"));
+    const teacher = me.role === "teacher";
+    const empty = teacher
+      ? "You haven't been assigned to a session yet. Once BPCTI adds you as a teacher, your sessions will appear here."
+      : "You're not enrolled in a class yet. Once BPCTI adds you to a session, it will appear here.";
+    shell("home", `<div class="pagehead"><div><h1>${teacher ? "Your sessions" : `Welcome, ${esc(firstName(me))}`}</h1>${sessions.length ? `<p class="muted">${teacher ? "Open a session for its students and weekly lessons. Recordings and materials you add are shared with every session of that class." : "Open your class to see this week's lesson, recordings, and materials."}</p>` : ""}</div></div>
+      ${sessions.length ? `<div class="grid">${sessions.map(card).join("")}</div>` : `<div class="panel"><p class="empty">${empty}</p></div>`}`);
   }
 
-  async function classForm(host, existing) {
+  function adminHome(sessions, allCourses) {
+    const byCourse = (cid) => sessions.filter((s) => s.course_id === cid);
+    const card = (k) => {
+      const list = byCourse(k.id);
+      const live = list.filter((s) => s.status === "active" || s.status === "planned");
+      return `<a class="ccard" href="#/class/${k.id}">
+        <span class="eyebrow" style="margin:0">${esc(PROGRAM[k.program])} · ${esc(k.specialization)}</span>
+        <h3>${esc(k.title)}</h3>
+        <div class="now">${list.length ? `${plural(list.length, "session")}${live.length ? ` · ${live.map((s) => esc(s.name)).join(", ")}` : ""}` : "No sessions yet"}</div>
+      </a>`;
+    };
+    shell("home", `<div class="pagehead"><div><h1>Classes</h1><p class="muted">Each class has one shared library of recordings and materials. Its sessions each have their own start date, teacher, and students.</p></div>
+      <button class="btn btn-primary" id="newsession">New session</button></div>
+      <div id="newsession-form" hidden></div>
+      ${["english", "korean"].map((prog) => `<h2 style="margin:28px 0 12px">${PROGRAM[prog]}</h2><div class="grid">${allCourses.filter((k) => k.program === prog).map(card).join("")}</div>`).join("")}`);
+    $("#newsession").onclick = () => sessionForm($("#newsession-form"));
+  }
+
+  async function sessionForm(host, existing, courseId) {
     const list = await courses();
     host.hidden = false;
-    const c = existing || { status: "planned" };
-    host.innerHTML = `<div class="panel" style="margin-bottom:20px"><h2>${existing ? "Edit class details" : "New class"}</h2>
-      <p class="muted small" style="margin:4px 0 16px">A class is one specialization taught to one group of students on one schedule.</p>
-      <div id="cf-m" hidden></div>
-      <form class="f" id="cf" novalidate>
+    const c = existing || { status: "planned", course_id: courseId };
+    host.innerHTML = `<div class="panel" style="margin-bottom:20px"><h2>${existing ? "Edit session" : "New session"}</h2>
+      <p class="muted small" style="margin:4px 0 16px">A session is one run of a class: its own start date, schedule, teacher, and students. It uses the class's shared recordings and materials.</p>
+      <div id="sf-m" hidden></div>
+      <form class="f" id="sf" novalidate>
+        <label class="fld">Class<select id="sf-course" ${existing ? "disabled" : ""} required>${list.map((k) => `<option value="${k.id}" ${k.id === c.course_id ? "selected" : ""}>${esc(PROGRAM[k.program].replace(" Program", ""))} ${k.specialization} — ${esc(k.title)}</option>`).join("")}</select></label>
         <div class="row">
-          <label class="fld">Specialization<select id="cf-course" ${existing ? "disabled" : ""} required>${list.map((k) => `<option value="${k.id}" ${k.id === c.course_id ? "selected" : ""}>${esc(PROGRAM[k.program].replace(" Program", ""))} ${k.specialization} — ${esc(k.title)}</option>`).join("")}</select></label>
+          <label class="fld">Session name <span class="hint">How it appears to students and teachers</span><input id="sf-name" type="text" value="${esc(c.name || "")}" placeholder="e.g. English A · Winter 2027 · Mornings" required></label>
+          <label class="fld">Status<select id="sf-status">${["planned", "active", "completed", "cancelled"].map((s) => `<option ${s === c.status ? "selected" : ""}>${s}</option>`).join("")}</select></label>
         </div>
         <div class="row">
-          <label class="fld">Class name <span class="hint">How it appears to students and teachers</span><input id="cf-name" type="text" value="${esc(c.name || "")}" placeholder="e.g. English B · Winter 2027 · Mornings" required></label>
-          <label class="fld">Status<select id="cf-status">${["planned", "active", "completed", "cancelled"].map((s) => `<option ${s === c.status ? "selected" : ""}>${s}</option>`).join("")}</select></label>
+          <label class="fld">Start date <span class="hint">Week 1 begins this day</span><input id="sf-start" type="date" value="${esc(c.start_date || "")}"></label>
+          <label class="fld">Schedule<input id="sf-sched" type="text" value="${esc(c.schedule || "")}" placeholder="e.g. Tue & Thu, 9:00–11:00 AM"></label>
         </div>
-        <div class="row">
-          <label class="fld">Start date <span class="hint">Week 1 begins this day</span><input id="cf-start" type="date" value="${esc(c.start_date || "")}"></label>
-          <label class="fld">Schedule<input id="cf-sched" type="text" value="${esc(c.schedule || "")}" placeholder="e.g. Tue & Thu, 9:00–11:00 AM"></label>
-        </div>
-        <label class="fld">Live class Zoom link <span class="hint">Optional. The recurring meeting students join each week.</span><input id="cf-live" type="url" value="${esc(c.live_meeting_url || "")}" placeholder="https://us06web.zoom.us/j/…"></label>
-        <div class="actions"><button class="btn btn-navy" type="submit">${existing ? "Save changes" : "Create class"}</button><button class="btn btn-line" type="button" id="cf-cancel">Cancel</button></div>
+        <label class="fld">Live class Zoom link <span class="hint">Optional. The recurring meeting this session joins each week.</span><input id="sf-live" type="url" value="${esc(c.live_meeting_url || "")}" placeholder="https://us06web.zoom.us/j/…"></label>
+        <div class="actions"><button class="btn btn-navy" type="submit">${existing ? "Save changes" : "Create session"}</button><button class="btn btn-line" type="button" id="sf-cancel">Cancel</button></div>
       </form></div>`;
-    const m = $("#cf-m");
+    const m = $("#sf-m");
     if (!existing) {
-      const suggest = () => { const k = list.find((x) => x.id === $("#cf-course").value); if (k && !$("#cf-name").dataset.touched) $("#cf-name").value = `${PROGRAM[k.program].replace(" Program", "")} ${k.specialization} · ${new Date().getFullYear() + (new Date().getMonth() > 8 ? 1 : 0)}`; };
-      $("#cf-course").onchange = suggest; $("#cf-name").oninput = () => ($("#cf-name").dataset.touched = "1"); suggest();
+      const suggest = () => { const k = list.find((x) => x.id === $("#sf-course").value); if (k && !$("#sf-name").dataset.touched) $("#sf-name").value = `${PROGRAM[k.program].replace(" Program", "")} ${k.specialization} · ${new Date().getFullYear() + (new Date().getMonth() > 8 ? 1 : 0)}`; };
+      $("#sf-course").onchange = suggest; $("#sf-name").oninput = () => ($("#sf-name").dataset.touched = "1"); suggest();
     }
-    $("#cf-cancel").onclick = () => { host.hidden = true; host.innerHTML = ""; };
-    $("#cf").onsubmit = (e) => {
+    $("#sf-cancel").onclick = () => { host.hidden = true; host.innerHTML = ""; };
+    $("#sf").onsubmit = (e) => {
       e.preventDefault();
-      const live = $("#cf-live").value.trim();
-      const patch = { name: $("#cf-name").value.trim(), status: $("#cf-status").value, start_date: $("#cf-start").value || null, schedule: $("#cf-sched").value.trim() || null, live_meeting_url: live || null };
-      if (!patch.name) return showMsg(m, "err", "Give the class a name.");
+      const live = $("#sf-live").value.trim();
+      const patch = { name: $("#sf-name").value.trim(), status: $("#sf-status").value, start_date: $("#sf-start").value || null, schedule: $("#sf-sched").value.trim() || null, live_meeting_url: live || null };
+      if (!patch.name) return showMsg(m, "err", "Give the session a name.");
       if (live && !/^https:\/\//i.test(live)) return showMsg(m, "err", "The live class link should start with https://");
-      busy($("#cf button[type=submit]"), async () => {
+      busy($("#sf button[type=submit]"), async () => {
         try {
-          if (existing) { await API.updateClass(existing.id, patch); toast("Class updated"); route(); }
-          else { const row = await API.createClass({ ...patch, course_id: $("#cf-course").value }); toast("Class created"); location.hash = `#/class/${row.id}`; }
+          if (existing) { await API.updateSession(existing.id, patch); toast("Session updated"); route(); }
+          else { const row = await API.createSession({ ...patch, course_id: $("#sf-course").value }); toast("Session created"); location.hash = `#/session/${row.id}`; }
         } catch (err) { showMsg(m, "err", err.message); }
       });
     };
   }
 
-  // ---------- class ----------
-  async function classView(id) {
-    loading("home");
-    const cls = await API.getClass(id);
-    if (!cls) return shell("home", `${crumbs([["Classes", "#/"]])}<div class="panel"><h2>Class not found</h2><p class="muted" style="margin-top:6px">It may have been removed, or you may not have access to it.</p></div>`);
-    const [weeks, recs, mats, teachers] = await Promise.all([API.weeks(cls.course_id), API.recordings(id), API.materials(id), API.teachers(id)]);
-    const manager = isManager(cls, teachers);
-    const roster = manager ? await API.roster(id) : [];
-    const admin = state.me.role === "admin";
-    const cw = currentWeek(cls);
-    const start = parseDate(cls.start_date);
-    const recCount = (w) => recs.filter((r) => r.week === w).length;
-    const matCount = (w) => mats.filter((x) => x.week === w).length;
+  // Manager of a class library = admin, or teacher of any session of that class.
+  async function managesCourse(courseId) {
+    if (state.me.role === "admin") return true;
+    if (state.me.role !== "teacher") return false;
+    return API.teachesCourse(courseId, state.me.id);
+  }
 
-    const weekRows = weeks.map((w) => {
-      const r = recCount(w.week), f = matCount(w.week), cur = w.week === cw;
+  function weekRows(weeks, recs, mats, hrefFor, session) {
+    const cw = session ? currentWeek(session) : null;
+    const start = session ? parseDate(session.start_date) : null;
+    return weeks.map((w) => {
+      const r = recs.filter((x) => x.week === w.week).length, f = mats.filter((x) => x.week === w.week).length, cur = w.week === cw;
       const dates = start ? ` · ${fmtDate(addDays(start, (w.week - 1) * 7)).replace(/, \d{4}$/, "")}` : "";
-      return `<a href="#/class/${id}/week/${w.week}" class="${cur ? "current" : ""}">
+      return `<a href="${hrefFor(w.week)}" class="${cur ? "current" : ""}">
         <span class="wk">Week ${pad(w.week)}${dates}</span>
         <span class="wt">${esc(w.title)}</span>
         <span class="marks">${cur ? `<span class="mark" style="background:var(--navy);color:#fff">This week</span>` : ""}${r ? `<span class="mark rec">Recording</span>` : ""}${f ? `<span class="mark">${f} file${f > 1 ? "s" : ""}</span>` : ""}</span>
       </a>`;
     }).join("");
+  }
 
-    const details = `<div class="panel"><h2>Class details</h2>
+  // ---------- class (library + sessions) ----------
+  async function classView(courseId) {
+    loading("home");
+    const course = (await courses()).find((k) => k.id === courseId);
+    if (!course) return shell("home", `${crumbs([["Classes", "#/"]])}<div class="panel"><h2>Class not found</h2></div>`);
+    const [weeks, recs, mats, allSessions, manager] = await Promise.all([API.weeks(courseId), API.recordings(courseId), API.materials(courseId), API.sessions(), managesCourse(courseId)]);
+    const sessions = allSessions.filter((s) => s.course_id === courseId);
+    const admin = state.me.role === "admin";
+    const sessionRow = (s) => `<a href="#/session/${s.id}"><span class="wk">${esc(s.start_date ? fmtDate(s.start_date) : "No start date")}</span><span class="wt">${esc(s.name)}${s.schedule ? `<span class="small muted" style="display:block;font-weight:400">${esc(s.schedule)}</span>` : ""}</span><span class="marks"><span class="pill ${s.status}">${esc(s.status)}</span></span></a>`;
+
+    shell("home", `
+      ${crumbs([[admin ? "Classes" : "My Classes", "#/"], [course.title]])}
+      <div class="pagehead"><div><span class="eyebrow">${esc(PROGRAM[course.program])} · Specialization ${esc(course.specialization)}</span><h1>${esc(course.title)}</h1>${course.tagline ? `<p class="muted">${esc(course.tagline)}</p>` : ""}</div></div>
+      <div class="cols">
+        <div class="stack">
+          <div class="panel"><div class="head"><div><h2>Class library</h2><p class="muted small">Recordings and materials for each week, shared with every session of this class.</p></div></div>
+            <div class="weeks">${weekRows(weeks, recs, mats, (n) => `#/class/${courseId}/week/${n}`)}</div></div>
+          ${materialsPanel(courseId, null, mats.filter((x) => x.week === null), manager, "Class materials", "Handouts for the whole class, shared with every session.")}
+        </div>
+        <div class="stack">
+          <div class="panel"><div class="head"><div><h2>Sessions</h2><p class="muted small">${admin ? "Each has its own start date, teacher, and students." : "Your sessions of this class."}</p></div>${admin ? `<button class="btn btn-line btn-sm" id="newsession">New session</button>` : ""}</div>
+            <div id="newsession-form" hidden></div>
+            ${sessions.length ? `<div class="weeks">${sessions.map(sessionRow).join("")}</div>` : `<p class="empty">No sessions yet.</p>`}
+          </div>
+        </div>
+      </div>`);
+    bindMaterials(courseId, null, mats.filter((x) => x.week === null));
+    if (admin) $("#newsession").onclick = () => sessionForm($("#newsession-form"), null, courseId);
+  }
+
+  // ---------- session ----------
+  async function sessionView(id) {
+    loading("home");
+    const s = await API.getSession(id);
+    if (!s) return shell("home", `${crumbs([["Classes", "#/"]])}<div class="panel"><h2>Session not found</h2><p class="muted" style="margin-top:6px">It may have been removed, or you may not have access to it.</p></div>`);
+    const [weeks, recs, mats, teachers] = await Promise.all([API.weeks(s.course_id), API.recordings(s.course_id), API.materials(s.course_id), API.teachers(id)]);
+    const admin = state.me.role === "admin";
+    const staff = admin || teachers.some((t) => t.id === state.me.id);
+    const roster = staff ? await API.roster(id) : [];
+    const start = parseDate(s.start_date);
+
+    const details = `<div class="panel"><h2>Session details</h2>
       <dl class="facts" style="margin-top:14px">
-        <dt>Class</dt><dd>${esc(cls.name)}</dd>
-        <dt>Status</dt><dd><span class="pill ${cls.status}">${esc(cls.status)}</span> ${esc(weekLabel(cls))}</dd>
-        ${cls.schedule ? `<dt>Schedule</dt><dd>${esc(cls.schedule)}</dd>` : ""}
-        ${start ? `<dt>Dates</dt><dd>${fmtDate(cls.start_date)} – ${fmtDate(addDays(start, 83))}</dd>` : ""}
+        <dt>Session</dt><dd>${esc(s.name)}</dd>
+        <dt>Status</dt><dd><span class="pill ${s.status}">${esc(s.status)}</span> ${esc(weekLabel(s))}</dd>
+        ${s.schedule ? `<dt>Schedule</dt><dd>${esc(s.schedule)}</dd>` : ""}
+        ${start ? `<dt>Dates</dt><dd>${fmtDate(s.start_date)} – ${fmtDate(addDays(start, 83))}</dd>` : ""}
         <dt>Teacher${teachers.length > 1 ? "s" : ""}</dt><dd>${teachers.length ? teachers.map((t) => esc(display(t))).join(", ") : "To be assigned"}</dd>
       </dl>
-      ${cls.live_meeting_url ? `<a class="btn btn-primary" style="margin-top:18px;width:100%" href="${esc(cls.live_meeting_url)}" target="_blank" rel="noopener">Join live class on Zoom</a>` : ""}
+      ${s.live_meeting_url ? `<a class="btn btn-primary" style="margin-top:18px;width:100%" href="${esc(s.live_meeting_url)}" target="_blank" rel="noopener">Join live class on Zoom</a>` : ""}
+      ${staff ? `<a class="btn btn-line" style="margin-top:10px;width:100%" href="#/class/${s.course_id}">Open class library</a>` : ""}
     </div>`;
 
-    const courseMats = materialsPanel(cls, null, mats.filter((x) => x.week === null), manager, "Course materials", "Handouts and resources for the whole course.");
-
-    const rosterPanel = manager ? `<div class="panel" id="roster"><div class="head"><div><h2>Students</h2><p class="muted small">${roster.filter((s) => s.status === "active").length} active</p></div>${admin ? `<button class="btn btn-line btn-sm" id="inv-student">Invite student</button>` : ""}</div>
+    const rosterPanel = staff ? `<div class="panel" id="roster"><div class="head"><div><h2>Students</h2><p class="muted small">${roster.filter((x) => x.status === "active").length} active in this session</p></div>${admin ? `<button class="btn btn-line btn-sm" id="inv-student">Invite student</button>` : ""}</div>
       <div id="inv-student-form" hidden></div>
       ${roster.length ? `<div class="tablewrap"><table class="t"><thead><tr><th>Name</th><th>Email</th><th>Status</th></tr></thead><tbody>
-        ${roster.map((s) => `<tr><td>${esc(s.full_name || "—")}</td><td>${esc(s.email)}</td><td>${admin ? `<select data-enroll="${s.id}" aria-label="Status for ${esc(display(s))}">${["active", "completed", "withdrawn"].map((x) => `<option ${x === s.status ? "selected" : ""}>${x}</option>`).join("")}</select>` : `<span class="pill ${s.status}">${s.status}</span>`}</td></tr>`).join("")}
-      </tbody></table></div>` : `<p class="empty">No students in this class yet.</p>`}
+        ${roster.map((x) => `<tr><td>${esc(x.full_name || "—")}</td><td>${esc(x.email)}</td><td>${admin ? `<select data-enroll="${x.id}" aria-label="Status for ${esc(display(x))}">${["active", "completed", "withdrawn"].map((v) => `<option ${v === x.status ? "selected" : ""}>${v}</option>`).join("")}</select>` : `<span class="pill ${x.status}">${x.status}</span>`}</td></tr>`).join("")}
+      </tbody></table></div>` : `<p class="empty">No students in this session yet.</p>`}
     </div>` : "";
 
-    const adminPanel = admin ? `<div class="panel" id="manage"><h2>Manage class</h2>
+    const adminPanel = admin ? `<div class="panel" id="manage"><h2>Manage session</h2>
       <p class="muted small" style="margin:4px 0 16px">Only admins see this.</p>
       <h3 style="margin-bottom:8px">Teachers</h3>
       ${teachers.length ? teachers.map((t) => `<div class="item"><div class="what"><b>${esc(display(t))}</b><span class="small muted">${esc(t.email)}</span></div><div class="acts"><button class="btn btn-danger btn-sm" data-unassign="${t.id}">Remove</button></div></div>`).join("") : `<p class="empty">No teacher assigned.</p>`}
-      <div class="actions" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px"><select id="assign-teacher" style="width:auto;min-width:200px"><option value="">Add an existing teacher…</option></select><button class="btn btn-line btn-sm" id="inv-teacher">Invite new teacher</button></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px"><select id="assign-teacher" style="width:auto;min-width:200px"><option value="">Add an existing teacher…</option></select><button class="btn btn-line btn-sm" id="inv-teacher">Invite new teacher</button></div>
       <div id="inv-teacher-form" hidden></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:22px;padding-top:18px;border-top:1px solid var(--line)">
-        <button class="btn btn-line btn-sm" id="edit-class">Edit class details</button>
-        <button class="btn btn-danger btn-sm" id="del-class">Delete class</button>
+        <button class="btn btn-line btn-sm" id="edit-session">Edit session details</button>
+        <button class="btn btn-danger btn-sm" id="del-session">Delete session</button>
       </div>
-      <div id="edit-class-form" hidden></div>
+      <div id="edit-session-form" hidden></div>
     </div>` : "";
 
+    const courseMats = mats.filter((x) => x.week === null);
     shell("home", `
-      ${crumbs([[state.me.role === "admin" ? "Classes" : "My Classes", "#/"], [cls.name]])}
-      <div class="pagehead"><div><span class="eyebrow">${esc(PROGRAM[cls.course.program])} · Specialization ${esc(cls.course.specialization)}</span><h1>${esc(cls.course.title)}</h1>${cls.course.tagline ? `<p class="muted">${esc(cls.course.tagline)}</p>` : ""}</div></div>
+      ${crumbs([[admin ? "Classes" : "My Classes", "#/"], ...(admin ? [[s.course.title, `#/class/${s.course_id}`]] : []), [s.name]])}
+      <div class="pagehead"><div><span class="eyebrow">${esc(PROGRAM[s.course.program])} · Specialization ${esc(s.course.specialization)}</span><h1>${esc(s.course.title)}</h1><p class="muted">${esc(s.name)}</p></div></div>
       <div class="cols">
         <div class="stack">
-          <div class="panel"><div class="head"><div><h2>12-week curriculum</h2><p class="muted small">Open a week for its lesson, recording, and materials.</p></div></div><div class="weeks">${weekRows}</div></div>
-          ${courseMats}
+          <div class="panel"><div class="head"><div><h2>12-week curriculum</h2><p class="muted small">Open a week for its lesson, recording, and materials.</p></div></div><div class="weeks">${weekRows(weeks, recs, mats, (n) => `#/session/${id}/week/${n}`, s)}</div></div>
+          ${courseMats.length || staff ? materialsPanel(s.course_id, null, courseMats, false, "Class materials", staff ? "Shared with every session. Add or remove them from the class library." : "") : ""}
           ${rosterPanel}
         </div>
         <div class="stack">${details}${adminPanel}</div>
       </div>`);
 
-    bindMaterials(cls, null, mats.filter((x) => x.week === null));
-    if (admin) bindAdmin(cls, teachers);
+    bindMaterials(s.course_id, null, courseMats);
+    if (admin) bindSessionAdmin(s, teachers);
   }
 
-  function inviteForm(host, { role, classId, onDone }) {
+  function inviteForm(host, { role, sessionId, onDone }) {
     host.hidden = false;
     host.innerHTML = `<div class="drawer"><div id="if-m" hidden></div>
       <form class="f" id="if" novalidate>
@@ -340,7 +386,7 @@
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return showMsg(m, "err", "Enter a valid email address.");
       busy($("#if button[type=submit]", host), async () => {
         try {
-          const r = await API.invite({ email, full_name: $("#if-name", host).value.trim() || undefined, role, class_id: classId });
+          const r = await API.invite({ email, full_name: $("#if-name", host).value.trim() || undefined, role, class_id: sessionId });
           toast(r.invited ? `Invite sent to ${email}` : `${email} already had an account and was added`);
           onDone();
         } catch (err) { showMsg(m, "err", err.message); }
@@ -348,18 +394,18 @@
     };
   }
 
-  async function bindAdmin(cls, teachers) {
-    $("#inv-student").onclick = () => inviteForm($("#inv-student-form"), { role: "student", classId: cls.id, onDone: route });
-    $("#inv-teacher").onclick = () => inviteForm($("#inv-teacher-form"), { role: "teacher", classId: cls.id, onDone: route });
-    $("#edit-class").onclick = () => classForm($("#edit-class-form"), cls);
-    confirmBtn($("#del-class"), "Click again to delete", async () => {
-      try { await API.deleteClass(cls.id); toast("Class deleted"); location.hash = "#/"; } catch (err) { toast(err.message); }
+  async function bindSessionAdmin(s, teachers) {
+    $("#inv-student").onclick = () => inviteForm($("#inv-student-form"), { role: "student", sessionId: s.id, onDone: route });
+    $("#inv-teacher").onclick = () => inviteForm($("#inv-teacher-form"), { role: "teacher", sessionId: s.id, onDone: route });
+    $("#edit-session").onclick = () => sessionForm($("#edit-session-form"), s);
+    confirmBtn($("#del-session"), "Click again to delete", async () => {
+      try { await API.deleteSession(s.id); toast("Session deleted"); location.hash = `#/class/${s.course_id}`; } catch (err) { toast(err.message); }
     });
     $$("[data-unassign]").forEach((b) => confirmBtn(b, "Confirm remove", async () => {
-      try { await API.removeTeacher(cls.id, b.dataset.unassign); toast("Teacher removed"); route(); } catch (err) { toast(err.message); }
+      try { await API.removeTeacher(s.id, b.dataset.unassign); toast("Teacher removed"); route(); } catch (err) { toast(err.message); }
     }));
     $$("[data-enroll]").forEach((sel) => sel.addEventListener("change", async () => {
-      try { await API.setEnrollment(cls.id, sel.dataset.enroll, sel.value); toast("Status updated"); } catch (err) { toast(err.message); route(); }
+      try { await API.setEnrollment(s.id, sel.dataset.enroll, sel.value); toast("Status updated"); } catch (err) { toast(err.message); route(); }
     }));
     const people = await API.people();
     const pick = $("#assign-teacher");
@@ -368,22 +414,22 @@
       .forEach((p) => pick.insertAdjacentHTML("beforeend", `<option value="${p.id}">${esc(display(p))}</option>`));
     pick.onchange = async () => {
       if (!pick.value) return;
-      try { await API.addTeacher(cls.id, pick.value); toast("Teacher added"); route(); } catch (err) { toast(err.message); }
+      try { await API.addTeacher(s.id, pick.value); toast("Teacher added"); route(); } catch (err) { toast(err.message); }
     };
   }
 
-  // ---------- materials (shared by class + week pages) ----------
-  function materialsPanel(cls, week, list, manager, title, sub) {
+  // ---------- materials (shared class library) ----------
+  function materialsPanel(courseId, week, list, manager, title, sub) {
     const key = week === null ? "course" : `w${week}`;
     return `<div class="panel" id="mat-${key}"><div class="head"><div><h2>${title}</h2>${sub ? `<p class="muted small">${sub}</p>` : ""}</div>${manager ? `<button class="btn btn-line btn-sm" data-addmat="${key}">Add material</button>` : ""}</div>
       <div data-matform="${key}" hidden></div>
       ${list.length ? list.map((x) => `<div class="item"><div class="what"><b>${esc(x.title)}</b><span class="tiny">${x.external_url ? "Link" : "File"} · added ${fmtDate(x.created_at)}</span></div>
         <div class="acts"><button class="btn btn-navy btn-sm" data-open="${x.id}">${x.external_url ? "Open link" : "Download"}</button>${manager ? `<button class="btn btn-danger btn-sm" data-delmat="${x.id}">Delete</button>` : ""}</div></div>`).join("")
-        : `<p class="empty">No materials ${week === null ? "for the whole course" : "for this week"} yet.</p>`}
+        : `<p class="empty">No materials ${week === null ? "for the whole class" : "for this week"} yet.</p>`}
     </div>`;
   }
 
-  function bindMaterials(cls, week, list) {
+  function bindMaterials(courseId, week, list) {
     const key = week === null ? "course" : `w${week}`;
     const panel = $(`#mat-${key}`);
     if (!panel) return;
@@ -392,7 +438,7 @@
       try { const url = await API.materialUrl(m); const a = document.createElement("a"); a.href = url; a.target = "_blank"; a.rel = "noopener"; document.body.appendChild(a); a.click(); a.remove(); }
       catch (err) { toast(err.message); }
     })));
-    $$("[data-delmat]", panel).forEach((b) => confirmBtn(b, "Confirm delete", async () => {
+    $$("[data-delmat]", panel).forEach((b) => confirmBtn(b, "Delete for all sessions?", async () => {
       try { await API.deleteMaterial(list.find((x) => x.id === b.dataset.delmat)); toast("Material deleted"); route(); } catch (err) { toast(err.message); }
     }));
     const add = $("[data-addmat]", panel);
@@ -406,6 +452,7 @@
           <div class="row"><label class="fld">Type<select class="mf-kind"><option value="file">Upload a file</option><option value="link">Paste a link</option></select></label></div>
           <label class="fld mf-file-wrap">File <span class="hint">PDF, slides, documents, up to 50 MB</span><input class="mf-file" type="file"></label>
           <label class="fld mf-link-wrap" hidden>Link<input class="mf-link" type="url" placeholder="https://"></label>
+          <p class="tiny">Every session of this class will see it.</p>
           <div class="actions"><button class="btn btn-navy btn-sm" type="submit">Add</button><button class="btn btn-line btn-sm" type="button" data-cancel>Cancel</button></div>
         </form></div>`;
       const f = $(".mf", host), m = $(".mf-m", host);
@@ -423,11 +470,11 @@
               const file = $(".mf-file", f).files[0];
               if (!file) return showMsg(m, "err", "Choose a file to upload.");
               if (file.size > MAX_FILE) return showMsg(m, "err", "That file is over 50 MB. Try a smaller file or share it as a link.");
-              await API.addMaterialFile(cls.id, week, title, file);
+              await API.addMaterialFile(courseId, week, title, file);
             } else {
               const url = $(".mf-link", f).value.trim();
               if (!/^https?:\/\//i.test(url)) return showMsg(m, "err", "Paste a full link starting with https://");
-              await API.addMaterialLink(cls.id, week, title, url);
+              await API.addMaterialLink(courseId, week, title, url);
             }
             toast("Material added"); route();
           } catch (err) { showMsg(m, "err", err.message); }
@@ -436,20 +483,27 @@
     };
   }
 
-  // ---------- week ----------
-  async function weekView(id, n) {
+  // ---------- week (from a session, or from the class library) ----------
+  async function weekView({ sessionId, courseId, n }) {
     loading("home");
     const week = Number(n);
-    const cls = await API.getClass(id);
-    if (!cls || !(week >= 1 && week <= 12)) return shell("home", `${crumbs([["Classes", "#/"]])}<div class="panel"><h2>Page not found</h2></div>`);
-    const [weeks, recsAll, matsAll, teachers] = await Promise.all([API.weeks(cls.course_id), API.recordings(id), API.materials(id), API.teachers(id)]);
+    const s = sessionId ? await API.getSession(sessionId) : null;
+    if (sessionId && !s) return shell("home", `${crumbs([["Classes", "#/"]])}<div class="panel"><h2>Page not found</h2></div>`);
+    const cid = s ? s.course_id : courseId;
+    const course = (await courses()).find((k) => k.id === cid);
+    if (!course || !(week >= 1 && week <= 12)) return shell("home", `${crumbs([["Classes", "#/"]])}<div class="panel"><h2>Page not found</h2></div>`);
+    const [weeks, recsAll, matsAll, manager] = await Promise.all([API.weeks(cid), API.recordings(cid), API.materials(cid), managesCourse(cid)]);
     const w = weeks.find((x) => x.week === week);
     const recs = recsAll.filter((r) => r.week === week);
     const mats = matsAll.filter((x) => x.week === week);
-    const manager = isManager(cls, teachers);
-    const start = parseDate(cls.start_date);
+    const start = s ? parseDate(s.start_date) : null;
     const when = start ? `${fmtDate(addDays(start, (week - 1) * 7))} – ${fmtDate(addDays(start, week * 7 - 1))}` : "";
-    const cw = currentWeek(cls);
+    const cw = s ? currentWeek(s) : null;
+    const admin = state.me.role === "admin";
+    const base = s ? `#/session/${s.id}` : `#/class/${cid}`;
+    const trail = s
+      ? [[admin ? "Classes" : "My Classes", "#/"], [s.name, `#/session/${s.id}`], [`Week ${week}`]]
+      : [[admin ? "Classes" : "My Classes", "#/"], [course.title, `#/class/${cid}`], [`Week ${week}`]];
 
     const recItem = (r) => `<div class="item" data-rec="${r.id}"><div class="what"><b>${esc(r.title || `Week ${week} class recording`)}</b><span class="tiny">${r.recorded_on ? `Recorded ${fmtDate(r.recorded_on)}` : "Class recording"}</span>
         ${r.passcode ? `<div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="small muted">Passcode</span><span class="pass">${esc(r.passcode)}</span><button class="btn btn-line btn-sm" data-copy="${esc(r.passcode)}">Copy</button></div>` : ""}</div>
@@ -458,29 +512,29 @@
       <div data-recform="${r.id}" hidden style="flex-basis:100%"></div></div>`;
 
     shell("home", `
-      ${crumbs([[state.me.role === "admin" ? "Classes" : "My Classes", "#/"], [cls.name, `#/class/${id}`], [`Week ${week}`]])}
-      <div class="pagehead"><div><span class="eyebrow">Week ${pad(week)} of 12${when ? ` · ${when}` : ""}${week === cw ? " · This week" : ""}</span><h1>${esc(w.title)}</h1><p class="muted">${esc(cls.course.title)}</p></div></div>
+      ${crumbs(trail)}
+      <div class="pagehead"><div><span class="eyebrow">Week ${pad(week)} of 12${when ? ` · ${when}` : ""}${week === cw ? " · This week" : ""}</span><h1>${esc(w.title)}</h1><p class="muted">${esc(course.title)}${s ? "" : " · Class library"}</p></div></div>
       <div class="stack">
         <div class="panel"><div class="focus"><div><h3>Learning focus</h3><p>${esc(w.description)}</p></div><div><h3>Practical training</h3><p>${esc(w.practical_training)}</p></div></div></div>
-        <div class="panel" id="recs"><div class="head"><div><h2>Class recording</h2><p class="muted small">${manager ? "Paste the Zoom cloud-recording share link and passcode after class." : "Missed class or want to review? Watch the recording here."}</p></div>${manager ? `<button class="btn btn-line btn-sm" id="addrec">Add recording</button>` : ""}</div>
+        <div class="panel" id="recs"><div class="head"><div><h2>Class recording</h2><p class="muted small">${manager ? "Shared with every session of this class. Paste the Zoom cloud-recording share link and passcode." : "Missed class or want to review? Watch the recording here."}</p></div>${manager ? `<button class="btn btn-line btn-sm" id="addrec">Add recording</button>` : ""}</div>
           <div id="addrec-form" hidden></div>
-          ${recs.length ? recs.map(recItem).join("") : `<p class="empty">${manager ? "No recording added for this week yet." : "No recording for this week yet. Check back after class."}</p>`}
+          ${recs.length ? recs.map(recItem).join("") : `<p class="empty">${manager ? "No recording for this week yet." : "No recording for this week yet. Check back later."}</p>`}
         </div>
-        ${materialsPanel(cls, week, mats, manager, "Materials", "")}
+        ${materialsPanel(cid, week, mats, manager, "Materials", manager ? "Shared with every session of this class." : "")}
       </div>
-      <div class="weeknav">${week > 1 ? `<a class="btn btn-line" href="#/class/${id}/week/${week - 1}">← Week ${week - 1}</a>` : "<span></span>"}${week < 12 ? `<a class="btn btn-line" href="#/class/${id}/week/${week + 1}">Week ${week + 1} →</a>` : "<span></span>"}</div>`);
+      <div class="weeknav">${week > 1 ? `<a class="btn btn-line" href="${base}/week/${week - 1}">← Week ${week - 1}</a>` : "<span></span>"}${week < 12 ? `<a class="btn btn-line" href="${base}/week/${week + 1}">Week ${week + 1} →</a>` : "<span></span>"}</div>`);
 
     $$("[data-copy]").forEach((b) => (b.onclick = () => copy(b.dataset.copy, b)));
-    bindMaterials(cls, week, mats);
+    bindMaterials(cid, week, mats);
     if (!manager) return;
-    $("#addrec").onclick = () => recordingForm($("#addrec-form"), cls.id, week);
-    $$("[data-editrec]").forEach((b) => (b.onclick = () => recordingForm($(`[data-recform="${b.dataset.editrec}"]`), cls.id, week, recs.find((r) => r.id === b.dataset.editrec))));
-    $$("[data-delrec]").forEach((b) => confirmBtn(b, "Confirm delete", async () => {
+    $("#addrec").onclick = () => recordingForm($("#addrec-form"), cid, week);
+    $$("[data-editrec]").forEach((b) => (b.onclick = () => recordingForm($(`[data-recform="${b.dataset.editrec}"]`), cid, week, recs.find((r) => r.id === b.dataset.editrec))));
+    $$("[data-delrec]").forEach((b) => confirmBtn(b, "Delete for all sessions?", async () => {
       try { await API.deleteRecording(b.dataset.delrec); toast("Recording deleted"); route(); } catch (err) { toast(err.message); }
     }));
   }
 
-  function recordingForm(host, classId, week, existing) {
+  function recordingForm(host, courseId, week, existing) {
     host.hidden = false;
     const r = existing || {};
     host.innerHTML = `<div class="drawer" style="margin-bottom:12px"><div class="rf-m" hidden></div>
@@ -488,10 +542,10 @@
         <label class="fld">Zoom share link <span class="hint">From Zoom → Recordings → Share. Starts with https:// and contains zoom.us</span><input class="rf-url" type="url" value="${esc(r.zoom_url || "")}" placeholder="https://us06web.zoom.us/rec/share/…" required></label>
         <div class="row">
           <label class="fld">Passcode<input class="rf-pass" type="text" value="${esc(r.passcode || "")}" autocomplete="off"></label>
-          <label class="fld">Class date<input class="rf-date" type="date" value="${esc(r.recorded_on || todayISO())}"></label>
+          <label class="fld">Date recorded <span class="hint">Optional</span><input class="rf-date" type="date" value="${esc(r.recorded_on || "")}"></label>
           <label class="fld">Title <span class="hint">Optional</span><input class="rf-title" type="text" value="${esc(r.title || "")}" placeholder="Week ${week} class recording"></label>
         </div>
-        <p class="tiny">Before sharing, turn off "Viewers can download" in Zoom's share settings. Only students in this class will see the link and passcode.</p>
+        <p class="tiny">Every session of this class will see this recording. Before sharing, turn off "Viewers can download" in Zoom's share settings.</p>
         <div class="actions"><button class="btn btn-navy btn-sm" type="submit">${existing ? "Save" : "Add recording"}</button><button class="btn btn-line btn-sm" type="button" data-cancel>Cancel</button></div>
       </form></div>`;
     const f = $(".rf", host), m = $(".rf-m", host);
@@ -503,7 +557,7 @@
       const rec = { zoom_url, passcode: $(".rf-pass", f).value.trim() || null, recorded_on: $(".rf-date", f).value || null, title: $(".rf-title", f).value.trim() || null };
       busy($("button[type=submit]", f), async () => {
         try {
-          if (existing) await API.updateRecording(existing.id, rec); else await API.addRecording({ ...rec, class_id: classId, week });
+          if (existing) await API.updateRecording(existing.id, rec); else await API.addRecording({ ...rec, course_id: courseId, week });
           toast(existing ? "Recording updated" : "Recording added"); route();
         } catch (err) { showMsg(m, "err", err.message); }
       });
@@ -514,7 +568,7 @@
   async function peopleView() {
     if (state.me.role !== "admin") { location.hash = "#/"; return; }
     loading("people");
-    const [people, classes] = await Promise.all([API.people(), API.classes()]);
+    const [people, sessions] = await Promise.all([API.people(), API.sessions()]);
     const counts = { admin: 0, teacher: 0, student: 0 };
     people.forEach((p) => counts[p.role]++);
     shell("people", `
@@ -525,11 +579,11 @@
       </tbody></table></div></div>`);
     $("#inv").onclick = () => {
       const host = $("#inv-form"); host.hidden = false;
-      host.innerHTML = `<h2>Invite someone</h2><p class="muted small" style="margin:4px 0 16px">They'll get an email to set a password. Add them to a class now or later.</p><div id="pi-m" hidden></div>
+      host.innerHTML = `<h2>Invite someone</h2><p class="muted small" style="margin:4px 0 16px">They'll get an email to set a password. Add them to a session now or later.</p><div id="pi-m" hidden></div>
         <form class="f" id="pi" novalidate>
           <div class="row"><label class="fld">Email<input id="pi-email" type="email" required></label><label class="fld">Full name<input id="pi-name" type="text"></label></div>
           <div class="row"><label class="fld">Role<select id="pi-role"><option>student</option><option>teacher</option><option>admin</option></select></label>
-          <label class="fld">Class <span class="hint">Optional</span><select id="pi-class"><option value="">Not yet</option>${classes.filter((c) => c.status !== "cancelled").map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join("")}</select></label></div>
+          <label class="fld">Session <span class="hint">Optional</span><select id="pi-class"><option value="">Not yet</option>${sessions.filter((c) => c.status !== "cancelled").map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join("")}</select></label></div>
           <div class="actions"><button class="btn btn-navy" type="submit">Send invite</button><button class="btn btn-line" type="button" id="pi-cancel">Cancel</button></div>
         </form>`;
       const m = $("#pi-m");
@@ -596,7 +650,9 @@
     if (!state.me) return;
     const parts = (location.hash.replace(/^#\/?/, "") || "").split("/").filter(Boolean);
     try {
-      if (parts[0] === "class" && parts[1] && parts[2] === "week") await weekView(parts[1], parts[3]);
+      if (parts[0] === "session" && parts[1] && parts[2] === "week") await weekView({ sessionId: parts[1], n: parts[3] });
+      else if (parts[0] === "session" && parts[1]) await sessionView(parts[1]);
+      else if (parts[0] === "class" && parts[1] && parts[2] === "week") await weekView({ courseId: parts[1], n: parts[3] });
       else if (parts[0] === "class" && parts[1]) await classView(parts[1]);
       else if (parts[0] === "people") await peopleView();
       else if (parts[0] === "account") accountView();
