@@ -57,7 +57,7 @@ function header() {
   return `<a class="skip" href="#main">Skip to content</a>
 <div class="util"><div class="wrap">
   <div class="util__contact"><span class="addr">${esc(C.addressLine2.replace(/ \d+$/, ""))}</span><a href="tel:${C.phone.replace(/\D/g, "")}">${esc(C.phone)}</a><a class="email" href="mailto:${C.email}">${esc(C.email)}</a></div>
-  <div class="util__actions"><a class="support" href="${href("scholarships/#support")}">Support Our Mission</a><a class="btn btn--gold btn--sm" href="${href("contact/#program-inquiry")}">Request Information</a></div>
+  <div class="util__actions"><a class="portal-link" href="${href("portal/")}">Student Portal</a><a class="support" href="${href("scholarships/#support")}">Support Our Mission</a><a class="btn btn--gold btn--sm" href="${href("contact/#program-inquiry")}">Request Information</a></div>
 </div></div>
 <header class="mast"><div class="wrap">
   <a class="brand" href="${href("")}"><img src="${asset("img/logo.png")}" alt="" width="54" height="54"><span>BP COMMUNICATION<br>TRAINING INSTITUTE</span></a>
@@ -82,6 +82,7 @@ function footer() {
       <li><a href="${href("admissions-tuition/")}">Admissions &amp; Tuition</a></li>
       <li><a href="${href("employer-training/")}">Employer Training</a></li>
       <li><a href="${href("scholarships/")}">Scholarships &amp; Support</a></li>
+      <li><a href="${href("portal/")}">Student Portal</a></li>
     </ul></div>
     <div><h2>Contact</h2><ul>
       <li>${esc(C.addressLine1)}<br>${esc(C.addressLine2)}</li>
