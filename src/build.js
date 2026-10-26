@@ -116,7 +116,7 @@ function page({ path: p, title, description, body, extraHead = "" }) {
 <meta name="theme-color" content="#022A66">
 <link rel="icon" type="image/png" href="${asset("img/favicon.png")}">
 <link rel="apple-touch-icon" href="${asset("img/apple-touch-icon.png")}">
-<link rel="preload" href="${asset("fonts/archivo-latin.woff2")}" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="${asset("fonts/archivo-wdth-latin.woff2")}" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="${asset("css/site.css")}">
 <script>document.documentElement.classList.add("js")</script>
 ${extraHead}</head>
@@ -142,7 +142,7 @@ const crumbs = (trail) => `<nav class="crumbs" aria-label="Breadcrumb"><ol>${tra
 function pageHero({ trail, eyebrow, title, tagline, lede, extra = "", btns = "" }) {
   return `<section class="phero on-dark"><div class="wrap">
   ${trail ? crumbs(trail) : ""}
-  ${eyebrow ? `<span class="eyebrow">${eyebrow}</span>` : ""}
+  ${eyebrow ? `<p class="phero__kicker">${eyebrow}</p>` : ""}
   <h1>${esc(title)}</h1>
   ${tagline ? `<p class="tagline">${esc(tagline)}</p>` : ""}
   ${lede ? (Array.isArray(lede) ? lede : [lede]).map((l) => `<p class="lede">${esc(l)}</p>`).join("") : ""}
@@ -171,7 +171,6 @@ function specCard(c) {
 function placementSection({ korean = false, id = "placement", mist = true } = {}) {
   return `<section class="sec ${mist ? "sec--mist" : ""} anchor" id="${id}"><div class="wrap two-col">
   <div>
-    <span class="eyebrow">Placement &amp; Proficiency Guidance</span>
     <h2>Choose Your Specialization. Find Your Appropriate Training Level.</h2>
     <div class="prose mt-m">
       <p>BPCTI recognizes that professional communication needs differ according to language proficiency, work experience, and career objectives.</p>
@@ -190,7 +189,6 @@ function placementSection({ korean = false, id = "placement", mist = true } = {}
 function assessmentSection(id = "assessment") {
   return `<section class="sec anchor" id="${id}"><div class="wrap two-col">
   <div>
-    <span class="eyebrow">Assessment &amp; Certificate</span>
     <h2>Demonstrate Your Professional Communication Skills</h2>
   </div>
   <div class="prose">
@@ -203,7 +201,7 @@ function assessmentSection(id = "assessment") {
 
 function ctaBand({ secondary = ["Explore Other Specializations", "programs/#specializations"] } = {}) {
   return `<section class="cta-band"><div class="wrap">
-  <div><span class="eyebrow eyebrow--gold">Ready to Get Started?</span><h2>Ready to Strengthen Your Professional Communication?</h2><p class="mt-s">Explore the specialization that matches your goals and connect with BPCTI to discuss course availability, placement, and enrollment.</p></div>
+  <div><h2>Ready to Strengthen Your Professional Communication?</h2><p class="mt-s">Explore the specialization that matches your goals and connect with BPCTI to discuss course availability, placement, and enrollment.</p></div>
   <div class="btns">${btn("Request Program Information", "contact/#program-inquiry")}${btn(secondary[0], secondary[1], "ghost")}</div>
 </div></section>`;
 }
@@ -228,7 +226,7 @@ function workshopsTeaser() {
   const W = S.culturalWorkshops;
   return `<section class="sec sec--tight"><div class="wrap">
   <div class="sec-head">
-    <div><span class="eyebrow">Complementary Experiences</span><h2>${esc(W.title)}</h2></div>
+    <div><h2>${esc(W.title)}</h2></div>
     <div><p class="prose">${esc(W.tagline)} These optional workshops are offered separately from BPCTI's eight professional communication specializations.</p><div class="mt-m"><a class="link" href="${href("programs/korean-cultural-workshops/")}">Explore cultural workshops</a></div></div>
   </div>
 </div></section>`;
@@ -241,7 +239,7 @@ function founderSection() {
   return `<section class="sec founder" id="founder" aria-labelledby="founder-h"><div class="wrap founder__grid">
   <img class="founder__img" src="${asset("img/abigail.jpg")}" alt="Abigail Ruth Sung, Founder of BP Communication Training Institute" loading="lazy">
   <div class="founder__text">
-    <span class="eyebrow">${esc(F.eyebrow)}</span>
+    <p class="founder__label">${esc(F.eyebrow)}</p>
     <h2 id="founder-h">${esc(F.headline)}</h2>
     <div class="founder__body prose" id="founder-body">${paras}</div>
     <button class="founder__toggle" type="button" aria-expanded="false" aria-controls="founder-body">Read Full Message</button>
@@ -250,13 +248,17 @@ function founderSection() {
 </div></section>`;
 }
 
-function matrix() {
+// The course map: four professional focuses (rows) offered in both programs (columns).
+function courseMap() {
   const rows = ["A", "B", "C", "D"].map((l) => {
-    const e = COURSES.find((c) => c.program === "english" && c.specialization === l);
-    const k = COURSES.find((c) => c.program === "korean" && c.specialization === l);
-    return `<tr><th scope="row">${esc(PANEL_LABEL[l])}</th><td data-label="English Program"><a href="${href(courseUrl(e))}">${esc(e.title)}</a></td><td data-label="Korean Program"><a href="${href(courseUrl(k))}">${esc(k.title)}</a></td></tr>`;
+    const cell = (pid) => {
+      const c = COURSES.find((x) => x.program === pid && x.specialization === l);
+      return `<td data-label="${pid === "english" ? "English program" : "Korean program"}"><a class="cmap__course" href="${href(courseUrl(c))}"><span class="cmap__title">${esc(c.title)}</span><span class="cmap__meta">${c.durationWeeks} weeks, ${c.instructionalHours} hours</span></a></td>`;
+    };
+    return `<tr><th scope="row"><span class="cmap__letter" aria-hidden="true">${l}</span><span class="cmap__focus">${esc(PANEL_LABEL[l])}</span></th>${cell("english")}${cell("korean")}</tr>`;
   }).join("");
-  return `<table class="matrix"><thead><tr><th scope="col">Professional Focus</th><th scope="col">Professional English Business Communication</th><th scope="col">Korean Global Business Communication</th></tr></thead><tbody>${rows}</tbody></table>`;
+  const col = (pid) => `<th scope="col"><a href="${href(programUrl(pid))}"><span class="cmap__prog">${esc(PROGRAMS[pid].title)}</span><span class="cmap__tag">${esc(PROGRAMS[pid].tagline)}</span></a></th>`;
+  return `<div class="cmap-wrap"><table class="cmap"><caption class="sr-only">Eight specializations: four professional focuses, each offered in the English and Korean programs</caption><thead><tr><th scope="col" class="cmap__corner">Professional focus</th>${col("english")}${col("korean")}</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 // =====================================================================
@@ -273,8 +275,8 @@ built.push(page({
   body: () => `
 <section class="hero">
   <div class="hero__copy on-dark">
-    <span class="eyebrow">${esc(brand.positioning)}</span>
-    <h1>${esc(brand.statement)}</h1>
+    <h1 class="hero__title">${brand.statement.split(". ").map((x, i, a) => `<span>${esc(x)}${i < a.length - 1 ? "." : ""}</span>`).join(" ")}</h1>
+    <p class="hero__pos">${esc(brand.positioning)}</p>
     <p class="hero__lede">Explore specialized English and Korean communication training designed for professional interviews, business meetings, executive presence, formal business events, and global leadership.</p>
     <div class="btns">${btn("Explore Our Programs", "programs/")}${btn("Request Information", "contact/#program-inquiry", "ghost")}</div>
   </div>
@@ -283,23 +285,14 @@ built.push(page({
 
 <section class="sec"><div class="wrap">
   <div class="sec-head">
-    <div><span class="eyebrow">Our Programs</span><h2>Two Programs. Eight Professional Specializations.</h2></div>
-    <p class="prose">Choose the professional skills you want to develop, then receive placement guidance based on your communication proficiency, experience, and goals. Each specialization is an independent course, not a sequential level.</p>
+    <h2>Two Programs. Eight Professional Specializations.</h2>
+    <p class="prose">Pick the professional situation you want to master, in English or Korean. Each specialization is its own 12-week course, not a level, so you can start with any of them.</p>
   </div>
-  <div class="grid-2">
-    ${["english", "korean"].map((pid) => {
-      const P = PROGRAMS[pid];
-      const list = COURSES.filter((c) => c.program === pid);
-      return `<article class="pcard"><h3>${esc(P.title)}</h3><p class="tag">${esc(P.tagline)}</p>
-      <ol>${list.map((c) => `<li><a href="${href(courseUrl(c))}"><span>${c.specialization}</span>${esc(c.title)}</a></li>`).join("")}</ol>
-      <div class="btns">${btn(pid === "english" ? "View English Specializations" : "View Korean Specializations", programUrl(pid), "navy")}</div></article>`;
-    }).join("")}
-  </div>
+  ${courseMap()}
 </div></section>
 
 <section class="split split--rev">
   <div class="split__copy">
-    <span class="eyebrow">Practical Training Methodology</span>
     <h2>Learn Through Realistic Professional Practice</h2>
     <div class="prose mt-m"><p>BPCTI combines guided instruction with professional simulations, role-play, instructor coaching, and performance-based assessment.</p><p>Participants practice realistic interviews, virtual meetings, professional introductions, formal dining conversations, and cross-cultural business scenarios, so they can apply their skills with greater clarity and confidence.</p></div>
     <div class="btns">${btn("Our Training Method", "training-method/", "navy")}</div>
@@ -311,7 +304,6 @@ ${founderSection()}
 
 <section class="sec sec--mist"><div class="wrap two-col">
   <div>
-    <span class="eyebrow">Education with Purpose</span>
     <h2>A Nonprofit Commitment to Professional Education</h2>
   </div>
   <div class="prose">
@@ -334,14 +326,13 @@ built.push(page({
   body: () => `
 ${pageHero({
   trail: [["Home", ""], ["Programs", "programs/"]],
-  eyebrow: "Programs",
   title: "Professional Communication Training for Career Advancement and Global Business",
   lede: ["Build the communication competencies that support professional success—from high-stakes interviews and executive meetings to business dining, formal receptions, and cross-cultural leadership.", "BP Communication Training Institute offers two distinctive programs and eight career-focused specializations. Choose the professional skills you want to develop, then receive placement guidance based on your communication proficiency, experience, and goals."],
   btns: btn("Explore English Programs", programUrl("english")) + btn("Explore Korean Programs", programUrl("korean"), "ghost"),
 })}
 
 <section class="sec"><div class="wrap">
-  <div class="sec-head sec-head--stack"><span class="eyebrow">Choose Your Professional Focus</span><h2>Two Distinctive Programs</h2></div>
+  <div class="sec-head sec-head--stack"><h2>Two Distinctive Programs</h2></div>
   <div class="grid-2">
     <article class="pcard"><h3>${esc(PROGRAMS.english.title)}</h3><p class="tag">${esc(PROGRAMS.english.tagline)}</p><p>Strengthen the skills needed to communicate effectively in American and international professional environments. Develop confidence and precision in interviews, meetings, presentations, professional social settings, and leadership interactions.</p><div class="btns">${btn("View English Specializations", programUrl("english"), "navy")}</div></article>
     <article class="pcard"><h3>${esc(PROGRAMS.korean.title)}</h3><p class="tag">${esc(PROGRAMS.korean.tagline)}</p><p>Advance your effectiveness in Korean and Korean-American professional environments. Develop business communication, cultural fluency, executive etiquette, and relationship-building skills appropriate to your experience and language proficiency.</p><div class="btns">${btn("View Korean Specializations", programUrl("korean"), "navy")}</div></article>
@@ -349,14 +340,14 @@ ${pageHero({
 </div></section>
 
 <section class="sec sec--mist anchor" id="specializations"><div class="wrap">
-  <div class="sec-head"><div><span class="eyebrow">Eight Specializations</span><h2>Find Your Professional Specialization</h2></div><p class="prose">Each program offers four independent specializations. Students select the specialization relevant to their professional objectives; a placement and training-needs assessment helps identify an appropriate instructional group or proficiency level.</p></div>
-  ${matrix()}
+  <div class="sec-head"><div><h2>Find Your Professional Specialization</h2></div><p class="prose">Each program offers four independent specializations. Students select the specialization relevant to their professional objectives; a placement and training-needs assessment helps identify an appropriate instructional group or proficiency level.</p></div>
+  ${courseMap()}
   <p class="small mt-m">Each specialization: 12 weeks · 48 instructional hours · BPCTI Certificate of Completion, subject to published completion requirements. No specialization requires completing another.</p>
 </div></section>
 
 <section class="sec"><div class="wrap">
-  <div class="sec-head"><div><span class="eyebrow">Why BPCTI?</span><h2>What Makes BPCTI Different?</h2></div><div><a class="link" href="#specializations">Find your professional specialization</a></div></div>
-  <div class="grid-3">${S.differentiators.map(([t, d], i) => `<div class="feature"><span class="num">${pad(i + 1)}</span><h3>${esc(t)}</h3><p>${esc(d)}</p></div>`).join("")}</div>
+  <div class="sec-head"><div><h2>What Makes BPCTI Different?</h2></div><div><a class="link" href="#specializations">Find your professional specialization</a></div></div>
+  <div class="grid-3">${S.differentiators.map(([t, d], i) => `<div class="feature"><h3>${esc(t)}</h3><p>${esc(d)}</p></div>`).join("")}</div>
 </div></section>
 
 ${flexibleTeaser()}
@@ -377,7 +368,6 @@ function programPage(pid) {
   const distinctive = isK ? `
 <section class="sec"><div class="wrap two-col">
   <div>
-    <span class="eyebrow">A Distinctive Learning Approach</span>
     <h2>Speaking Korean Socially Is Not the Same as Professional Korean</h2>
     <div class="prose mt-m">
       <p>The program is not limited to language acquisition. It emphasizes professional Korean communication, executive protocol, workplace hierarchy, business relationships, formal dining, and cross-cultural leadership.</p>
@@ -398,7 +388,6 @@ function programPage(pid) {
     body: () => `
 ${pageHero({
   trail: [["Home", ""], ["Programs", "programs/"], [P.title, programUrl(pid)]],
-  eyebrow: "Program",
   title: P.title,
   tagline: P.tagline,
   lede: heroLede,
@@ -406,12 +395,12 @@ ${pageHero({
 })}
 ${distinctive}
 <section class="sec ${isK ? "sec--mist" : ""} anchor" id="specializations"><div class="wrap">
-  <div class="sec-head"><div><span class="eyebrow">Four Independent Specializations</span><h2>Choose the Training That Fits Your Goals</h2></div><p class="prose">These are four independent courses, not four sequential levels. Select the specialization most relevant to your professional objectives. No specialization requires completing another.</p></div>
+  <div class="sec-head"><div><h2>Choose the Training That Fits Your Goals</h2></div><p class="prose">These are four independent courses, not four sequential levels. Select the specialization most relevant to your professional objectives. No specialization requires completing another.</p></div>
   <div class="grid-4">${list.map(specCard).join("")}</div>
 </div></section>
 
 <section class="sec ${isK ? "" : "sec--mist"}"><div class="wrap two-col">
-  <div><span class="eyebrow">Course Format</span><h2>A Shared Format Across All Specializations</h2><p class="prose mt-m">The same overall instructional duration does not mean that every student receives identical content or that every specialization is taught at a single language level.</p></div>
+  <div><h2>A Shared Format Across All Specializations</h2><p class="prose mt-m">The same overall instructional duration does not mean that every student receives identical content or that every specialization is taught at a single language level.</p></div>
   <dl class="facts">${S.courseFormat.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>
 </div></section>
 
@@ -444,7 +433,7 @@ for (const c of COURSES) {
     body: () => `
 ${pageHero({
   trail: [["Home", ""], ["Programs", "programs/"], [P.title, programUrl(c.program)], [c.title, courseUrl(c)]],
-  eyebrow: `${esc(P.title)} · Specialization ${c.specialization}`,
+  eyebrow: `Specialization ${c.specialization}`,
   title: c.title,
   tagline: c.tagline,
   lede: c.overview[0],
@@ -454,7 +443,6 @@ ${pageHero({
 
 <section class="sec"><div class="wrap two-col">
   <div>
-    <span class="eyebrow">Course Overview</span>
     <h2>About This Specialization</h2>
     <div class="prose mt-m">${c.overview.slice(1).map((p) => `<p>${esc(p)}</p>`).join("")}<p>This is one of four independent specializations in the ${esc(P.title)} program. You may enroll in it without completing any other specialization.</p></div>
   </div>
@@ -465,28 +453,28 @@ ${pageHero({
 </div></section>
 
 <section class="sec sec--mist"><div class="wrap">
-  <div class="sec-head sec-head--stack"><span class="eyebrow">Learning Outcomes</span><h2>What You Will Be Able to Do</h2><p class="lede">${outcomesIntro}</p></div>
+  <div class="sec-head sec-head--stack"><h2>What You Will Be Able to Do</h2><p class="lede">${outcomesIntro}</p></div>
   <ul class="checks checks--2">${c.learningOutcomes.map((o) => `<li>${esc(o)}</li>`).join("")}</ul>
 </div></section>
 
 <section class="sec"><div class="wrap two-col">
-  <div><span class="eyebrow">Course Format &amp; Instructional Approach</span><h2>How This Course Works</h2><p class="prose mt-m">Instruction combines guided teaching with professional simulations, role-play, coaching, applied assignments, and performance assessments. The same overall instructional duration does not mean that every student receives identical content or that every specialization is taught at a single language level.</p><div class="mt-m"><a class="link" href="${href("training-method/")}">Our training method</a></div></div>
+  <div><h2>How This Course Works</h2><p class="prose mt-m">Instruction combines guided teaching with professional simulations, role-play, coaching, applied assignments, and performance assessments. The same overall instructional duration does not mean that every student receives identical content or that every specialization is taught at a single language level.</p><div class="mt-m"><a class="link" href="${href("training-method/")}">Our training method</a></div></div>
   <dl class="facts">${S.courseFormat.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>
 </div></section>
 
 <section class="sec sec--mist anchor" id="curriculum"><div class="wrap">
-  <div class="sec-head sec-head--stack"><span class="eyebrow">Complete Curriculum</span><h2>Your 12-Week Curriculum</h2><p class="lede">All twelve weeks together make up this one specialization. Select a week to see its learning focus and practical training.</p></div>
+  <div class="sec-head sec-head--stack"><h2>Your 12-Week Curriculum</h2><p class="lede">All twelve weeks together make up this one specialization. Select a week to see its learning focus and practical training.</p></div>
   <div class="curr-tools"><span class="small">${c.durationWeeks} weeks · ${c.instructionalHours} instructional hours</span><button type="button" data-toggle-weeks aria-expanded="false">Expand all weeks</button></div>
   <div class="curr">${c.curriculum.map((w) => `
     <details class="week" id="week-${pad(w.week)}">
-      <summary><span class="wk-num">Week ${pad(w.week)}</span><span class="wk-title">${esc(w.title)}</span><span class="wk-icon" aria-hidden="true"></span></summary>
+      <summary><span class="wk-num">Week ${w.week}</span><span class="wk-title">${esc(w.title)}</span><span class="wk-icon" aria-hidden="true"></span></summary>
       <div class="wk-body"><div><h4>Learning Focus</h4><p>${esc(w.description)}</p></div><div><h4>Practical Training</h4><p>${esc(w.practicalTraining)}</p></div></div>
     </details>`).join("")}
   </div>
 </div></section>
 
 <section class="sec"><div class="wrap">
-  <div class="sec-head"><div><span class="eyebrow">Practical Training Experiences</span><h2>Applied Training Highlights</h2></div><p class="prose">Every week pairs a learning focus with practical training, so participants rehearse the real professional situations this specialization prepares them for.</p></div>
+  <div class="sec-head"><div><h2>Applied Training Highlights</h2></div><p class="prose">Every week pairs a learning focus with practical training, so participants rehearse the real professional situations this specialization prepares them for.</p></div>
   <ul class="chips">${c.practicalHighlights.map((h) => `<li>${esc(h)}</li>`).join("")}</ul>
   ${c.notes.length ? `<div class="mt-l">${c.notes.map((n) => `<div class="note"><strong>Please note:</strong> ${esc(n)}</div>`).join("")}</div>` : ""}
 </div></section>
@@ -496,7 +484,7 @@ ${assessmentSection()}
 ${ctaBand({ secondary: ["Explore Other Specializations", programUrl(c.program) + "#specializations"] })}
 
 <section class="sec"><div class="wrap">
-  <div class="sec-head"><div><span class="eyebrow">Related Specializations</span><h2>Explore Other ${esc(P.shortTitle)} Specializations</h2></div><p class="prose">Also offered in the ${esc(otherP.title)} program: <a href="${href(courseUrl(counterpart))}">${esc(counterpart.title)}</a>.</p></div>
+  <div class="sec-head"><div><h2>Explore Other ${esc(P.shortTitle)} Specializations</h2></div><p class="prose">Also offered in the ${esc(otherP.title)} program: <a href="${href(courseUrl(counterpart))}">${esc(counterpart.title)}</a>.</p></div>
   <div class="grid-3">${siblings.map(specCard).join("")}</div>
 </div></section>
 `,
@@ -513,19 +501,19 @@ ${ctaBand({ secondary: ["Explore Other Specializations", programUrl(c.program) +
     body: () => `
 ${pageHero({
   trail: [["Home", ""], ["Programs", "programs/"], [W.title, "programs/korean-cultural-workshops/"]],
-  eyebrow: "Optional Cultural Workshops",
+  eyebrow: "Optional workshops",
   title: W.title,
   tagline: W.tagline,
   lede: W.intro,
   btns: btn("Request Workshop Information", "contact/#general"),
 })}
 <section class="sec"><div class="wrap">
-  <div class="sec-head"><div><span class="eyebrow">Workshop Categories</span><h2>Four Ways to Experience Korean Culture</h2></div><p class="prose">${esc(W.availability)}</p></div>
-  <div class="grid-2">${W.workshops.map((w, i) => `<article class="wcard"><span class="num">${pad(i + 1)}</span><h3>${esc(w.title)}</h3><p>${esc(w.text)}</p></article>`).join("")}</div>
+  <div class="sec-head"><div><h2>Four Ways to Experience Korean Culture</h2></div><p class="prose">${esc(W.availability)}</p></div>
+  <div class="grid-2">${W.workshops.map((w, i) => `<article class="wcard"><h3>${esc(w.title)}</h3><p>${esc(w.text)}</p></article>`).join("")}</div>
   <div class="note mt-l"><strong>Optional and separate.</strong> ${esc(W.separation)}</div>
 </div></section>
 <section class="sec sec--mist"><div class="wrap two-col">
-  <div><span class="eyebrow">Looking for Professional Training?</span><h2>Korean Global Business Communication</h2><p class="prose mt-m">For formal professional Korean, executive protocol, business dining, and Korean–American leadership, explore BPCTI's four professional Korean specializations.</p></div>
+  <div><h2>Korean Global Business Communication</h2><p class="prose mt-m">For formal professional Korean, executive protocol, business dining, and Korean–American leadership, explore BPCTI's four professional Korean specializations.</p></div>
   <div style="align-self:center"><div class="btns" style="margin-top:0">${btn("View Korean Specializations", programUrl("korean"), "navy")}${btn("All Programs", "programs/", "line")}</div></div>
 </div></section>
 `,
@@ -542,17 +530,16 @@ ${pageHero({
     body: () => `
 ${pageHero({
   trail: [["Home", ""], ["Training Method", "training-method/"]],
-  eyebrow: "Training Method",
   title: "Learn Through Realistic Professional Practice",
   lede: "BPCTI's training approach combines guided instruction with applied communication practice, so participants build skills they can use in real professional situations.",
 })}
 <section class="sec"><div class="wrap">
-  <div class="sec-head sec-head--stack"><span class="eyebrow">How We Teach</span><h2>Five Elements of BPCTI Training</h2></div>
-  <div class="grid-3">${S.trainingMethods.map(([t, d], i) => `<div class="feature"><span class="num">${pad(i + 1)}</span><h3>${esc(t)}</h3><p>${esc(d)}</p></div>`).join("")}</div>
+  <div class="sec-head sec-head--stack"><h2>Five Elements of BPCTI Training</h2></div>
+  <div class="grid-3">${S.trainingMethods.map(([t, d], i) => `<div class="feature"><h3>${esc(t)}</h3><p>${esc(d)}</p></div>`).join("")}</div>
 </div></section>
 
 <section class="sec sec--navy on-dark"><div class="wrap">
-  <div class="sec-head sec-head--stack"><span class="eyebrow">The Learning Cycle</span><h2>From Instruction to Professional Skill</h2></div>
+  <div class="sec-head sec-head--stack"><h2>From Instruction to Professional Skill</h2></div>
   <ol class="steps">${[["Instruction", "Guided teaching on the communication skills of each week's professional situation."], ["Practice", "Simulations, role-play, and applied exercises."], ["Feedback", "Instructor coaching on clarity, tone, and professional presence."], ["Assessment", "Performance-based assessment aligned with learning outcomes."], ["Skill Development", "Reflection and goals for continued professional growth."]].map(([t, d], i) => `<li><span class="num">${pad(i + 1)}</span><h3>${t}</h3><p>${d}</p></li>`).join("")}</ol>
 </div></section>
 
@@ -589,18 +576,17 @@ built.push(page({
   body: () => `
 ${pageHero({
   trail: [["Home", ""], ["Admissions & Tuition", "admissions-tuition/"]],
-  eyebrow: "Admissions",
   title: "Admissions & Tuition",
   lede: ["BPCTI offers specialized professional communication training designed around practical learning outcomes and career-relevant communication competencies.", "Prospective students are encouraged to review available specializations, discuss their professional goals, and complete any applicable placement assessment before enrollment."],
 })}
 <section class="sec"><div class="wrap">
-  <div class="sec-head sec-head--stack"><span class="eyebrow">Admissions Process</span><h2>Five Steps to Enrollment</h2></div>
-  <ol class="steps steps--light">${S.admissionsSteps.map(([t, d], i) => `<li><span class="num">Step ${i + 1}</span><h3>${esc(t)}</h3><p>${esc(d)}</p></li>`).join("")}</ol>
+  <div class="sec-head sec-head--stack"><h2>Five Steps to Enrollment</h2></div>
+  <ol class="steps steps--light">${S.admissionsSteps.map(([t, d], i) => `<li><span class="num">${i + 1}</span><h3>${esc(t)}</h3><p>${esc(d)}</p></li>`).join("")}</ol>
   <div class="btns mt-l">${btn("Explore the Programs", "programs/", "navy")}${btn("Request Information", "contact/#program-inquiry", "line")}</div>
 </div></section>
 
 <section class="sec sec--mist anchor" id="tuition"><div class="wrap two-col">
-  <div><span class="eyebrow">Tuition</span><h2>Tuition &amp; Course Format</h2><p class="prose mt-m">Each specialization is a single course. All twelve weeks belong to one specialization and are not offered as separate modules.</p></div>
+  <div><h2>Tuition &amp; Course Format</h2><p class="prose mt-m">Each specialization is a single course. All twelve weeks belong to one specialization and are not offered as separate modules.</p></div>
   <div class="tuition">
     <h3>Per specialization</h3>
     <dl>
@@ -615,7 +601,7 @@ ${pageHero({
 ${placementSection({ mist: false })}
 
 <section class="sec sec--mist"><div class="wrap two-col">
-  <div><span class="eyebrow">Financial Support</span><h2>Scholarships &amp; Employer Education Benefits</h2></div>
+  <div><h2>Scholarships &amp; Employer Education Benefits</h2></div>
   <div class="prose">
     <p>Limited need-based scholarships and institutional tuition assistance may be available to eligible students, subject to eligibility requirements, available funding, program availability, and BPCTI policies. Scholarship assistance is not guaranteed.</p>
     <p>Some employers offer education assistance or tuition reimbursement. Eligibility and approval are determined by each employer's own process; BPCTI does not guarantee that any course qualifies for employer or third-party education benefits.</p>
@@ -634,14 +620,12 @@ built.push(page({
   body: () => `
 ${pageHero({
   trail: [["Home", ""], ["Employer Training", "employer-training/"]],
-  eyebrow: "Employer Training",
   title: "Professional Communication Training for Teams and Organizations",
   lede: "BPCTI welcomes conversations with organizations that want to strengthen how their employees communicate in interviews, meetings, client relationships, and cross-cultural collaboration.",
   btns: btn("Contact BPCTI", "contact/#general"),
 })}
 <section class="sec"><div class="wrap two-col">
   <div>
-    <span class="eyebrow">For Organizations</span>
     <h2>Training Grounded in Real Workplace Situations</h2>
     <div class="prose mt-m">
       <p>BPCTI's English and Korean specializations are organized around the professional situations employees face every day. Organizations can contact BPCTI to discuss their team's communication needs, which specializations may fit, and whether group or scheduled training can be arranged.</p>
@@ -660,7 +644,7 @@ ${pageHero({
   </div>
 </div></section>
 <section class="sec sec--mist"><div class="wrap two-col">
-  <div><span class="eyebrow">Employer Education Assistance</span><h2>Using Employer Education Benefits</h2></div>
+  <div><h2>Using Employer Education Benefits</h2></div>
   <div class="prose">
     <p>Some employers offer education assistance or tuition reimbursement programs. Eligibility, approval, and reimbursement are determined by each employer's own policies and processes.</p>
     <p>Employees should confirm with their employer before enrolling. BPCTI does not represent any course as pre-approved by a particular employer, and education benefits or reimbursement are not guaranteed.</p>
@@ -678,13 +662,11 @@ built.push(page({
   body: () => `
 ${pageHero({
   trail: [["Home", ""], ["Scholarships & Support", "scholarships/"]],
-  eyebrow: "Scholarships & Support",
   title: "Expanding Access to Professional Education",
   lede: ["BPCTI believes that access to professional education can create opportunities for personal growth, professional development, and stronger communities.", "As part of the educational mission of Abigail Ruth Sung Foundation, BPCTI is committed to helping expand access to professional communication training for individuals from diverse backgrounds."],
 })}
 <section class="sec anchor" id="scholarships"><div class="wrap two-col">
   <div>
-    <span class="eyebrow">Need-Based Support</span>
     <h2>Scholarships &amp; Tuition Assistance</h2>
     <p class="prose mt-m">Limited need-based scholarships and institutional tuition assistance may be available to eligible students who demonstrate financial need.</p>
     <p class="fine mt-m">Scholarship and tuition assistance availability is not guaranteed and may vary by program and available funding.</p>
@@ -695,7 +677,6 @@ ${pageHero({
 
 <section class="sec sec--navy on-dark anchor" id="support"><div class="wrap two-col">
   <div>
-    <span class="eyebrow">Support BPCTI</span>
     <h2>Help Open Doors Through Education</h2>
     <p class="lede mt-m">Your support can help expand access to professional communication education and create opportunities for learners who may otherwise face financial barriers to professional training.</p>
     <p class="prose mt-s">${esc(brand.nonprofit)}</p>
@@ -719,12 +700,11 @@ built.push(page({
   body: () => `
 ${pageHero({
   trail: [["Home", ""], ["About", "about/"]],
-  eyebrow: "About BPCTI",
   title: "Professional Communication. Greater Opportunity. Stronger Connections.",
   lede: "BP Communication Training Institute is a professional communication and career development training institution offering specialized instruction in English and Korean business communication.",
 })}
 <section class="sec"><div class="wrap two-col">
-  <div><span class="eyebrow">Who We Are</span><h2>Communication That Advances Careers</h2></div>
+  <div><h2>Communication That Advances Careers</h2></div>
   <div class="prose">
     <p>BPCTI's distinctive educational value is the integration of professional language, career communication, executive presence, workplace etiquette, business dining, formal networking, and cross-cultural leadership.</p>
     <p>We believe effective communication can strengthen professional confidence, improve workplace collaboration, bridge cultural differences, and create new opportunities for personal and professional growth.</p>
@@ -732,23 +712,22 @@ ${pageHero({
   </div>
 </div></section>
 <section class="sec sec--mist"><div class="wrap two-col">
-  <div><span class="eyebrow">Our Mission</span><h2>Empowering People Through Communication</h2></div>
+  <div><h2>Empowering People Through Communication</h2></div>
   <p class="prose">Our mission is to expand access to high-quality professional communication education and empower individuals with the practical skills, confidence, and cultural understanding needed to communicate effectively in today's diverse and global workforce.</p>
 </div></section>
 <section class="sec"><div class="wrap two-col">
-  <div><span class="eyebrow">Our Educational Philosophy</span><h2>Effective Communication Is Not Developed Through Theory Alone</h2></div>
+  <div><h2>Effective Communication Is Not Developed Through Theory Alone</h2></div>
   <div class="prose"><p>At BPCTI, students learn through instruction, practice, interaction, feedback, and assessment.</p><p>Our training emphasizes practical application through professional simulations, so learners develop communication skills they can use in professional and real-world environments.</p><div class="mt-m"><a class="link" href="${href("training-method/")}">Our training method</a></div></div>
 </div></section>
 <section class="sec sec--mist"><div class="wrap person">
   <img src="${asset("img/abigail.jpg")}" alt="Portrait of Abigail Ruth Sung" loading="lazy">
   <div>
-    <span class="eyebrow">Our Nonprofit Foundation</span>
     <h2>Education with Purpose</h2>
     <div class="prose mt-m"><p><strong>${esc(brand.nonprofit)}</strong></p><p>Abigail Ruth Sung Foundation was established on February 2, 2022, to provide educational and community-based programs that expand learning opportunities and serve the community.</p><p>BPCTI extends this educational mission through structured professional communication and career development training for adult learners and working professionals.</p></div>
   </div>
 </div></section>
 <section class="sec"><div class="wrap two-col">
-  <div><span class="eyebrow">Our Commitment</span><h2>We Are Committed To</h2></div>
+  <div><h2>We Are Committed To</h2></div>
   <ul class="checks checks--2">${S.about.commitments.map((c) => `<li>${esc(c)}</li>`).join("")}</ul>
 </div></section>
 ${ctaBand({ secondary: ["Explore Our Programs", "programs/"] })}
@@ -763,7 +742,6 @@ built.push(page({
   body: () => `
 ${pageHero({
   trail: [["Home", ""], ["Contact", "contact/"]],
-  eyebrow: "Contact BPCTI",
   title: "We'd Love to Hear From You",
   lede: "Interested in a specialization, placement, scholarships, or BPCTI? Send us an inquiry. You do not need to have chosen a specialization yet.",
 })}
@@ -779,7 +757,6 @@ ${pageHero({
   </aside>
   <div>
     <div class="form-block anchor" id="program-inquiry">
-      <span class="eyebrow">Program &amp; Placement Inquiry</span>
       <h2>Request Program Information</h2>
       <p class="prose mt-s">Tell us which program and specialization interest you (or that you are still deciding), your communication goals, and how you'd like us to contact you. We'll follow up about course availability, placement, and next steps.</p>
       <p class="fine mt-s">Submitting an inquiry does not constitute enrollment or require payment of tuition. Please don't include sensitive personal information.</p>
@@ -787,7 +764,6 @@ ${pageHero({
       <p class="small mt-s">Having trouble with the form? <a href="${C.PROGRAM_INQUIRY_FORM_URL}" target="_blank" rel="noopener">Open it in a new tab</a>.</p>
     </div>
     <div class="form-block anchor" id="general">
-      <span class="eyebrow">General Questions</span>
       <h2>Scholarships, Workshops &amp; Other Questions</h2>
       <p class="prose mt-s">For scholarship assistance, cultural workshops, employer training, or anything else, send us a general inquiry.</p>
       <div class="btns">${`<a class="btn btn--navy" href="${C.CONTACT_FORM_URL}" target="_blank" rel="noopener">Send a General Inquiry</a>`}</div>
@@ -802,8 +778,7 @@ built.push(page({
   path: "404.html",
   title: S.seo.notfound[0],
   description: S.seo.notfound[1],
-  body: () => `<section class="sec"><div class="wrap center" style="padding:40px 0">
-  <span class="eyebrow">404</span><h1>Page Not Found</h1>
+  body: () => `<section class="sec"><div class="wrap center" style="padding:40px 0"><h1>Page Not Found</h1>
   <p class="lede" style="margin:18px auto 0">The page you're looking for doesn't exist or has moved.</p>
   <div class="btns" style="justify-content:center">${btn("Back to Home", "")}${btn("Explore Programs", "programs/", "line")}</div>
 </div></section>`,
