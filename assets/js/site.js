@@ -43,3 +43,17 @@
     });
   }
 })();
+
+// Founder's Message: "Read Full Message" on phones
+(function () {
+  document.documentElement.classList.add("js");
+  var sec = document.getElementById("founder");
+  var btn = sec && sec.querySelector(".founder__toggle");
+  if (!btn) return;
+  btn.addEventListener("click", function () {
+    var open = sec.classList.toggle("is-open");
+    btn.setAttribute("aria-expanded", open ? "true" : "false");
+    btn.textContent = open ? "Show Less" : "Read Full Message";
+    if (!open) sec.scrollIntoView({ block: "start" });
+  });
+})();

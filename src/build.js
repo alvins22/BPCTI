@@ -118,6 +118,7 @@ function page({ path: p, title, description, body, extraHead = "" }) {
 <link rel="apple-touch-icon" href="${asset("img/apple-touch-icon.png")}">
 <link rel="preload" href="${asset("fonts/archivo-latin.woff2")}" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="${asset("css/site.css")}">
+<script>document.documentElement.classList.add("js")</script>
 ${extraHead}</head>
 <body>
 ${header()}
@@ -233,6 +234,22 @@ function workshopsTeaser() {
 </div></section>`;
 }
 
+function founderSection() {
+  const F = S.founder;
+  const n = F.mobilePreview;
+  const paras = F.paragraphs.map((p, i) => `<p${i >= n ? ' class="founder__more"' : ""}>${esc(p)}</p>`).join("");
+  return `<section class="sec founder" id="founder" aria-labelledby="founder-h"><div class="wrap founder__grid">
+  <img class="founder__img" src="${asset("img/abigail.jpg")}" alt="Abigail Ruth Sung, Founder of BP Communication Training Institute" loading="lazy">
+  <div class="founder__text">
+    <span class="eyebrow">${esc(F.eyebrow)}</span>
+    <h2 id="founder-h">${esc(F.headline)}</h2>
+    <div class="founder__body prose" id="founder-body">${paras}</div>
+    <button class="founder__toggle" type="button" aria-expanded="false" aria-controls="founder-body">Read Full Message</button>
+    <p class="founder__sig"><strong>${esc(F.name)}</strong><span>${esc(F.title)}</span><span>${esc(F.org)}</span></p>
+  </div>
+</div></section>`;
+}
+
 function matrix() {
   const rows = ["A", "B", "C", "D"].map((l) => {
     const e = COURSES.find((c) => c.program === "english" && c.specialization === l);
@@ -280,15 +297,9 @@ built.push(page({
   </div>
 </div></section>
 
-<section class="sec sec--mist"><div class="wrap">
-  <div class="sec-head"><div><span class="eyebrow">Why BPCTI?</span><h2>What Makes BPCTI Different?</h2></div><p class="prose">Training is built around the professional situations where communication matters most, from high-stakes interviews and executive meetings to business dining, formal receptions, and cross-cultural leadership.</p></div>
-  <div class="grid-3">${S.differentiators.map(([t, d], i) => `<div class="feature"><span class="num">${pad(i + 1)}</span><h3>${esc(t)}</h3><p>${esc(d)}</p></div>`).join("")}
-  <div class="feature"><span class="num">06</span><h3>Certificate of Completion</h3><p>Students who fulfill published completion requirements receive a BPCTI Certificate of Completion identifying the specialization completed.</p></div></div>
-</div></section>
-
 <section class="split split--rev">
   <div class="split__copy">
-    <span class="eyebrow">Learn. Practice. Communicate.</span>
+    <span class="eyebrow">Practical Training Methodology</span>
     <h2>Learn Through Realistic Professional Practice</h2>
     <div class="prose mt-m"><p>BPCTI combines guided instruction with professional simulations, role-play, instructor coaching, and performance-based assessment.</p><p>Participants practice realistic interviews, virtual meetings, professional introductions, formal dining conversations, and cross-cultural business scenarios, so they can apply their skills with greater clarity and confidence.</p></div>
     <div class="btns">${btn("Our Training Method", "training-method/", "navy")}</div>
@@ -296,32 +307,22 @@ built.push(page({
   <div class="split__media"><img src="${asset("img/group-discussion.jpg")}" alt="Adult professionals in a small-group discussion around a table" loading="lazy"></div>
 </section>
 
-<section class="duo">
-  <div class="soft">
-    <span class="eyebrow">Scholarships &amp; Tuition Assistance</span>
-    <h2 style="font-size:clamp(24px,2.4vw,30px)">Expanding Access to Professional Education</h2>
-    <div class="prose mt-m"><p>We believe professional education should create opportunities for individuals and strengthen communities.</p><p>Limited need-based scholarships and institutional tuition assistance may be available to eligible students, subject to eligibility requirements, available funding, program availability, and BPCTI policies.</p></div>
-    <div class="mt-m"><a class="link" href="${href("scholarships/")}">Learn about scholarships</a></div>
-  </div>
-  <div class="dark on-dark">
-    <span class="eyebrow">Ready to Learn More?</span>
-    <h2 style="font-size:clamp(24px,2.4vw,30px)">Find Your Professional Specialization</h2>
-    <p class="prose mt-m">Tell us which program interests you, and our team will provide information about course availability, placement, and next steps.</p>
-    <div class="btns">${btn("Request Program Information", "contact/#program-inquiry")}</div>
-    <p class="fine mt-m" style="color:#C3CCDB">Submitting an inquiry does not constitute enrollment or require payment of tuition.</p>
-  </div>
-</section>
+${founderSection()}
 
-<section class="sec"><div class="wrap person">
-  <img src="${asset("img/abigail.jpg")}" alt="Portrait of Abigail Ruth Sung" loading="lazy">
+<section class="sec sec--mist"><div class="wrap two-col">
   <div>
     <span class="eyebrow">Education with Purpose</span>
     <h2>A Nonprofit Commitment to Professional Education</h2>
-    <p class="prose mt-m"><strong>${esc(brand.nonprofit)}</strong></p>
-    <p class="prose mt-s">Through professional education, scholarships, and community-focused learning opportunities, we seek to expand access to practical communication training and professional development.</p>
-    <div class="btns"><a class="link" href="${href("about/")}">About BPCTI</a><a class="link" href="${href("scholarships/#support")}">Support our mission</a></div>
+  </div>
+  <div class="prose">
+    <p><strong>${esc(brand.nonprofit)}</strong></p>
+    <p>Through professional education, scholarships, and community-focused learning opportunities, we seek to expand access to practical communication training and professional development.</p>
+    <p>Limited need-based scholarships and institutional tuition assistance may be available to eligible students, subject to eligibility requirements, available funding, program availability, and BPCTI policies.</p>
+    <div class="btns"><a class="link" href="${href("about/")}">About BPCTI</a><a class="link" href="${href("scholarships/")}">Scholarships &amp; support</a></div>
   </div>
 </div></section>
+
+${ctaBand({ secondary: ["Explore Our Programs", "programs/"] })}
 `,
 }));
 

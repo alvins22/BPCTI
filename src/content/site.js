@@ -144,6 +144,24 @@ const culturalWorkshops = {
   ],
 };
 
+// Founder's Message — approved copy (Abby, Oct 25 2026)
+const founder = {
+  eyebrow: "A Message from Our Founder",
+  headline: "Communication Opens Doors. Confidence Creates Opportunities.",
+  paragraphs: [
+    "At BP Communication Training Institute, we believe that effective communication is more than a professional skill. It is the foundation of confidence, leadership, meaningful relationships, and opportunity.",
+    "In today's interconnected world, professional success requires more than knowledge and technical expertise. It requires the ability to express ideas with clarity, navigate cultural differences with understanding, and represent oneself with confidence and professionalism.",
+    "BPCTI was established with a clear purpose: to equip individuals with practical communication skills that strengthen their professional presence, expand career opportunities, and prepare them to succeed in diverse business environments.",
+    "Our commitment extends beyond the classroom. As a nonprofit educational institution, we believe that access to quality professional education can empower individuals, strengthen communities, and create lasting opportunities.",
+    "We are dedicated to developing confident communicators, thoughtful professionals, and globally minded leaders who can make a meaningful impact wherever their careers take them.",
+  ],
+  name: "Abigail Ruth Sung",
+  title: "Founder",
+  org: "BP Communication Training Institute",
+  // Paragraphs shown before "Read Full Message" on phones
+  mobilePreview: 2,
+};
+
 // Carried over from the existing site
 const about = {
   commitments: ["High-quality professional education", "Practical and measurable learning", "Inclusive learning opportunities", "Cross-cultural understanding", "Professional development", "Educational accessibility", "Community impact"],
@@ -171,5 +189,5 @@ const seo = {
 
 module.exports = {
   config, brand, nav, differentiators, trainingMethods, placementFactors, courseFormat,
-  admissionsSteps, flexibleLearning, culturalWorkshops, about, scholarships, seo,
+  admissionsSteps, flexibleLearning, culturalWorkshops, founder, about, scholarships, seo,
 };
